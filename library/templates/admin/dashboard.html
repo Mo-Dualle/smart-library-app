@@ -178,9 +178,14 @@
     <i class="fa-solid fa-triangle-exclamation me-1"></i>Fines
   </a>
   {% endif %}
-  {% if staff_access.staff_accounts %}
+  {% if staff_access.can_create_staff %}
   <a href="{% url 'library:admin_create_staff' %}" class="btn btn-outline-secondary btn-sm">
     <i class="fa-solid fa-user-shield me-1"></i>Add staff
+  </a>
+  {% endif %}
+  {% if can_manage_groups %}
+  <a href="{% url 'library:admin_group_list' %}" class="btn btn-outline-secondary btn-sm">
+    <i class="fa-solid fa-layer-group me-1"></i>Groups
   </a>
   {% endif %}
 </div>

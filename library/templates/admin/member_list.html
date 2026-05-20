@@ -13,7 +13,7 @@
       {{ total_admins }} role staff account{{ total_admins|pluralize }}
     </small>
   </div>
-  {% if staff_access.staff_accounts %}
+  {% if staff_access.can_create_staff %}
   <a href="{% url 'library:admin_create_staff' %}" class="btn btn-dark btn-sm">
     <i class="fa-solid fa-user-shield me-1"></i>Add staff
   </a>
@@ -41,7 +41,7 @@
 
   <a href="?role=admin{% if query %}&q={{ query }}{% endif %}"
      class="btn btn-sm {% if role_filter == 'admin' %}btn-dark{% else %}btn-outline-dark{% endif %}">
-    <i class="fa-solid fa-user-shield me-1"></i>Staff roles
+    <i class="fa-solid fa-user-shield me-1"></i>Groups
     <span class="badge {% if role_filter == 'admin' %}bg-light text-dark{% else %}bg-secondary{% endif %} ms-1">
       {{ total_admins }}
     </span>
@@ -111,13 +111,7 @@
               <div class="flex-shrink-0 text-end">
                 {% if user.is_staff %}
                   {% for g in user.groups.all %}
-                    {% if g.name == "Librarian" %}
-                      <span class="badge bg-primary me-1"><i class="fa-solid fa-books me-1"></i>Librarian</span>
-                    {% elif g.name == "Finance Officer" %}
-                      <span class="badge bg-success me-1"><i class="fa-solid fa-coins me-1"></i>Finance</span>
-                    {% elif g.name == "User Manager" %}
-                      <span class="badge bg-info text-dark me-1"><i class="fa-solid fa-users-gear me-1"></i>User manager</span>
-                    {% endif %}
+                    <span class="badge bg-secondary me-1">{{ g.name }}</span>
                   {% empty %}
                     <span class="badge bg-dark">
                       <i class="fa-solid fa-user-shield me-1"></i>Full staff
@@ -170,7 +164,7 @@
                 </div>
               {% endif %}
 
-              {% if staff_access.members %}
+              {% if can_update_members %}
               <form method="post"
                     action="{% url 'library:admin_member_toggle' user.id %}"
                     data-confirm-title="{% if user.is_active %}Disable Account{% else %}Enable Account{% endif %}"
@@ -186,6 +180,21 @@
                   {% else %}
                     <i class="fa-solid fa-circle-check"></i>
                   {% endif %}
+                </button>
+              </form>
+              {% endif %}
+              {% if can_delete_members and user.id != current_user_id and not user.is_superuser %}
+              <form method="post"
+                    action="{% url 'library:admin_member_delete' user.id %}"
+                    data-confirm-title="Delete User"
+                    data-confirm-body="Delete {{ user.get_full_name }} permanently?"
+                    data-confirm-ok="Delete"
+                    data-confirm-class="btn btn-danger">
+                {% csrf_token %}
+                <button type="submit"
+                        class="btn btn-sm btn-outline-danger"
+                        title="Delete user">
+                  <i class="fa-solid fa-trash"></i>
                 </button>
               </form>
               {% endif %}

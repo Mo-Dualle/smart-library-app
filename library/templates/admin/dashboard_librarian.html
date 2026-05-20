@@ -69,6 +69,11 @@
   <a href="{% url 'library:admin_reservation_list' %}" class="btn btn-outline-dark btn-sm">
     <i class="fa-solid fa-clock me-1"></i>Reservations
   </a>
+  {% if can_manage_groups %}
+  <a href="{% url 'library:admin_group_list' %}" class="btn btn-outline-secondary btn-sm">
+    <i class="fa-solid fa-layer-group me-1"></i>Groups
+  </a>
+  {% endif %}
 </div>
 
 <h5 class="fw-semibold mb-3">Recent loans</h5>

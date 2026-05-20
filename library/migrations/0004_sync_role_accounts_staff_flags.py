@@ -1,5 +1,6 @@
-# Users in Librarian / Finance Officer / User Manager groups must be real staff accounts
-# (is_staff=True, is_member=False) or the in-app admin panel treats them like members.
+# Historical data sync:
+# users in predefined staff groups were converted to real staff accounts
+# (`is_staff=True`, `is_member=False`) for admin-panel compatibility.
 
 from django.db import migrations
 

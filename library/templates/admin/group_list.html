@@ -1,0 +1,108 @@
+{% extends "layout.html" %}
+{% block title %}Groups — LibraryApp{% endblock %}
+
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h4 class="fw-bold mb-0">Permission groups</h4>
+    <small class="text-muted">Django auth groups with model permissions.</small>
+  </div>
+  {% if can_manage_groups %}
+    <a href="{% url 'library:admin_group_create' %}" class="btn btn-dark btn-sm">
+      <i class="fa-solid fa-plus me-1"></i>Create group
+    </a>
+  {% endif %}
+</div>
+
+{% if rows %}
+  <div class="table-responsive">
+    <table class="table table-hover align-middle">
+      <thead class="table-dark">
+        <tr>
+          <th scope="col">Group name</th>
+          <th scope="col">Permissions</th>
+          <th scope="col" class="text-center">Staff portal</th>
+          <th scope="col" class="text-end">Users</th>
+          <th scope="col" class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+          <tr>
+            <td class="fw-semibold">{{ row.group.name }}</td>
+            <td style="max-width: 340px">
+              {% if row.permissions %}
+                <div class="d-flex flex-wrap gap-1">
+                  {% for perm in row.permissions %}
+                    <span class="badge bg-light text-dark border"
+                          title="{{ perm.content_type.app_label }}.{{ perm.codename }}">
+                      {{ perm.name }}
+                    </span>
+                  {% endfor %}
+                </div>
+              {% else %}
+                <span class="text-muted small">No assignable permissions</span>
+              {% endif %}
+            </td>
+            <td class="text-center">
+              {% if row.is_staff_portal %}
+                <span class="badge bg-success"><i class="fa-solid fa-check me-1"></i>Yes</span>
+              {% else %}
+                <span class="badge bg-secondary">No</span>
+              {% endif %}
+            </td>
+            <td class="text-end">
+              <span class="badge bg-dark">{{ row.user_count }}</span>
+            </td>
+            <td class="text-end">
+              <div class="d-inline-flex gap-1 flex-wrap justify-content-end">
+                {% if can_manage_groups %}
+                  <a href="{% url 'library:admin_group_edit' row.group.id %}"
+                     class="btn btn-sm btn-outline-secondary">
+                    <i class="fa-solid fa-pen-to-square me-1"></i>Edit
+                  </a>
+                {% endif %}
+                {% if row.can_delete %}
+                  <form method="post"
+                        action="{% url 'library:admin_group_delete' row.group.id %}"
+                        class="d-inline"
+                        data-confirm-title="Delete group"
+                        data-confirm-body="Delete group '{{ row.group.name }}' permanently? This cannot be undone."
+                        data-confirm-ok="Delete"
+                        data-confirm-class="btn btn-danger">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-outline-danger">
+                      <i class="fa-solid fa-trash me-1"></i>Delete
+                    </button>
+                  </form>
+                {% elif can_delete_groups and row.user_count > 0 %}
+                  <span class="btn btn-sm btn-outline-danger disabled"
+                        title="Remove all users from this group before deleting">
+                    <i class="fa-solid fa-trash me-1"></i>Delete
+                  </span>
+                {% endif %}
+              </div>
+              {% if not can_manage_groups and not row.can_delete %}
+                <span class="text-muted small">—</span>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  <div class="text-center py-5">
+    <i class="fa-solid fa-layer-group fa-3x text-muted mb-3 d-block"></i>
+    <h5 class="fw-semibold">No groups yet</h5>
+    <p class="text-muted mb-3">Create a group to assign Django permissions to staff accounts.</p>
+    {% if can_manage_groups %}
+      <a href="{% url 'library:admin_group_create' %}" class="btn btn-dark btn-sm">
+        <i class="fa-solid fa-plus me-1"></i>Create group
+      </a>
+    {% endif %}
+  </div>
+{% endif %}
+
+{% endblock %}

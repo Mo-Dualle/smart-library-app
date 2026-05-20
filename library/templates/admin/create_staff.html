@@ -21,15 +21,15 @@
       </div>
       <div>
         <h4 class="fw-bold mb-0">Add staff account</h4>
-        <small class="text-muted">Create Librarian and/or Finance Officer accounts</small>
+        <small class="text-muted">Create staff accounts and assign Django groups</small>
       </div>
     </div>
 
     <div class="alert alert-light border shadow-sm d-flex gap-2 mb-4">
       <i class="fa-solid fa-circle-info mt-1 text-primary flex-shrink-0"></i>
       <div class="small">
-        This screen creates <strong>role-based staff</strong> accounts only.
-        Legacy full-admin accounts and User Manager accounts are not created here.
+        Select one or more role groups.
+        Access is controlled by the permissions assigned to those groups.
       </div>
     </div>
 
@@ -102,30 +102,31 @@
 
           <hr class="my-4"/>
 
-          <p class="fw-semibold mb-2">Staff roles</p>
-          <p class="text-muted small mb-3">Choose one or both roles for this account.</p>
+          <p class="fw-semibold mb-2">Groups</p>
+          <p class="text-muted small mb-3">Choose one or more Django groups for this account.</p>
 
           <div class="row g-3 mb-3">
-            <div class="col-md-4">
-              <div class="form-check p-3 border rounded h-100 bg-light">
-                <input class="form-check-input" type="checkbox" name="role_librarian" id="role_librarian"
-                       value="on" {% if form_data and form_data.role_librarian %}checked{% endif %}/>
-                <label class="form-check-label fw-semibold" for="role_librarian">
-                  <i class="fa-solid fa-books text-primary me-1"></i> Librarian
-                </label>
-                <div class="small text-muted mt-1">Catalog, loans, reservations</div>
+            {% for g in selectable_groups %}
+              <div class="col-md-6">
+                <div class="form-check p-3 border rounded h-100 bg-light">
+                  <input class="form-check-input"
+                         type="checkbox"
+                         name="groups"
+                         id="group_{{ g.id }}"
+                         value="{{ g.id }}"
+                         {% if g.id|stringformat:"s" in selected_group_ids %}checked{% endif %}/>
+                  <label class="form-check-label fw-semibold" for="group_{{ g.id }}">
+                    {{ g.name }}
+                  </label>
+                </div>
               </div>
-            </div>
-            <div class="col-md-4">
-              <div class="form-check p-3 border rounded h-100 bg-light">
-                <input class="form-check-input" type="checkbox" name="role_finance_officer" id="role_finance_officer"
-                       value="on" {% if form_data and form_data.role_finance_officer %}checked{% endif %}/>
-                <label class="form-check-label fw-semibold" for="role_finance_officer">
-                  <i class="fa-solid fa-coins text-success me-1"></i> Finance Officer
-                </label>
-                <div class="small text-muted mt-1">Fines and payments overview</div>
+            {% empty %}
+              <div class="col-12">
+                <div class="alert alert-warning mb-0">
+                  No assignable groups found. Create groups from the Groups screen first.
+                </div>
               </div>
-            </div>
+            {% endfor %}
           </div>
 
           <div class="d-flex gap-2 justify-content-end">

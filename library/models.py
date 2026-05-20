@@ -2,7 +2,8 @@ import uuid
 import datetime
 
 from django.db import models
-from django.contrib.auth.models import AbstractUser
+from django.contrib.auth.models import AbstractUser, Group, Permission
+from django.contrib.contenttypes.models import ContentType
 
 
 # ---------------------------------------------------------------------------
@@ -31,14 +32,8 @@ class Account(AbstractUser):
 
     class Meta(AbstractUser.Meta):
         db_table = "account"
-        permissions = [
-            ("access_staff_dashboard", "Can access the staff dashboard"),
-            ("manage_catalog", "Can manage books, authors, and categories"),
-            ("manage_circulation", "Can manage loans and reservations"),
-            ("manage_fines_staff", "Can view and manage fines (staff)"),
-            ("manage_members", "Can manage library members and accounts"),
-            ("manage_staff_accounts", "Can create staff accounts and assign roles"),
-        ]
+        verbose_name = "user"
+        verbose_name_plural = "users"
 
     def __str__(self):
         return f"{self.get_full_name()} ({self.email})"

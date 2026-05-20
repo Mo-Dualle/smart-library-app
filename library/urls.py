@@ -80,6 +80,7 @@ urlpatterns = [
     path("admin-panel/members/",                        views.admin_member_list_view,          name="admin_member_list"),
     path("admin-panel/members/<int:member_id>/",        views.admin_member_detail_view,        name="admin_member_detail"),
     path("admin-panel/members/<int:member_id>/toggle/", views.admin_toggle_member_active_view, name="admin_member_toggle"),
+    path("admin-panel/members/<int:member_id>/delete/", views.admin_member_delete_view,        name="admin_member_delete"),
 
     # ------------------------------------------------------------------
     # Admin — Loans
@@ -93,6 +94,11 @@ urlpatterns = [
     path("admin-panel/fines/",          views.admin_fine_list_view,        name="admin_fine_list"),
     path("admin-panel/reservations/",   views.admin_reservation_list_view, name="admin_reservation_list"),
     path("admin-panel/staff/create/",   views.admin_create_staff_view,     name="admin_create_staff"),
+    path("admin-panel/roles/",          views.admin_group_list_view,       name="admin_group_list"),
+    path("admin-panel/roles/add/",      views.admin_group_create_view,     name="admin_group_create"),
+    path("admin-panel/roles/<int:group_id>/edit/", views.admin_group_edit_view, name="admin_group_edit"),
+    path("admin-panel/roles/<int:group_id>/delete/", views.admin_group_delete_view, name="admin_group_delete"),
+    path("admin-panel/members/<int:member_id>/roles/", views.admin_member_roles_update_view, name="admin_member_roles_update"),
 
     # ------------------------------------------------------------------
     # Inline JSON — called from book form modals

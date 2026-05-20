@@ -53,10 +53,17 @@
   <a href="{% url 'library:admin_member_list' %}?role=admin" class="btn btn-outline-dark btn-sm">
     <i class="fa-solid fa-user-shield me-1"></i>Staff
   </a>
-  {% if staff_access.staff_accounts %}
+  {% if staff_access.can_create_staff %}
   <a href="{% url 'library:admin_create_staff' %}" class="btn btn-outline-secondary btn-sm">
     <i class="fa-solid fa-user-plus me-1"></i>Add staff
   </a>
+  {% endif %}
+  {% if staff_access.staff_accounts %}
+  {% if can_manage_groups %}
+  <a href="{% url 'library:admin_group_list' %}" class="btn btn-outline-secondary btn-sm">
+    <i class="fa-solid fa-layer-group me-1"></i>Groups
+  </a>
+  {% endif %}
   {% endif %}
 </div>
 

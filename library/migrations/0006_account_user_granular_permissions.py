@@ -1,27 +1,7 @@
-# Historical bootstrap for staff RBAC using predefined auth groups.
-
 from django.db import migrations
 
-GROUP_LIBRARIAN = "Librarian"
-GROUP_FINANCE_OFFICER = "Finance Officer"
-GROUP_USER_MANAGER = "User Manager"
 
-GROUP_PERMISSIONS = {
-    GROUP_LIBRARIAN: (
-        "access_staff_dashboard",
-        "manage_catalog",
-        "manage_circulation",
-    ),
-    GROUP_FINANCE_OFFICER: (
-        "access_staff_dashboard",
-        "manage_fines_staff",
-    ),
-    GROUP_USER_MANAGER: (
-        "access_staff_dashboard",
-        "manage_members",
-        "manage_staff_accounts",
-    ),
-}
+GROUP_USER_MANAGER = "User Manager"
 
 
 def forwards(apps, schema_editor):
@@ -38,11 +18,24 @@ def forwards(apps, schema_editor):
         p.codename: p
         for p in Permission.objects.filter(content_type=ct)
     }
+    group = Group.objects.filter(name=GROUP_USER_MANAGER).first()
+    if not group:
+        return
 
-    for group_name, codenames in GROUP_PERMISSIONS.items():
-        group, _ = Group.objects.get_or_create(name=group_name)
-        wanted = [perms_by_codename[c] for c in codenames if c in perms_by_codename]
-        group.permissions.set(wanted)
+# Historical default policy for one existing staff group:
+# - read users
+# - update users
+# - create users
+# - manage staff role assignment
+    wanted_codes = (
+        "access_staff_dashboard",
+        "view_members",
+        "update_members",
+        "create_users",
+        "manage_staff_accounts",
+    )
+    wanted = [perms_by_codename[c] for c in wanted_codes if c in perms_by_codename]
+    group.permissions.set(wanted)
 
 
 def noop_reverse(apps, schema_editor):
@@ -52,7 +45,7 @@ def noop_reverse(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("library", "0002_alter_account_gender"),
+        ("library", "0005_alter_account_options"),
         ("contenttypes", "0002_remove_content_type_name"),
         ("auth", "0012_alter_user_first_name_max_length"),
     ]
@@ -68,9 +61,16 @@ class Migration(migrations.Migration):
                     ("manage_circulation", "Can manage loans and reservations"),
                     ("manage_fines_staff", "Can view and manage fines (staff)"),
                     ("manage_members", "Can manage library members and accounts"),
+                    ("view_members", "Can view users and member profiles"),
+                    ("update_members", "Can update users and member profiles"),
+                    ("delete_members", "Can delete users and member profiles"),
+                    ("create_users", "Can create new users"),
                     ("manage_staff_accounts", "Can create staff accounts and assign roles"),
                 ],
+                "verbose_name": "user",
+                "verbose_name_plural": "users",
             },
         ),
         migrations.RunPython(forwards, noop_reverse),
     ]
+

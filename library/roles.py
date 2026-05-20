@@ -1,93 +1,205 @@
-"""
-Staff role helpers: Librarian, Finance Officer, User Manager.
-
-Legacy behaviour: is_staff users who are not in any of the three role groups
-(or Django superusers) keep full access to all staff features.
-"""
+"""Staff access helpers using Django auth Group and Permission models."""
 
 from __future__ import annotations
 
+from collections import defaultdict
 from functools import wraps
 
-from django.contrib.auth.models import Group
+from django.contrib.auth.models import Group, Permission
 from django.core.exceptions import PermissionDenied
 
-# Group names — must match migration `library/migrations/0003_*.py`
-GROUP_LIBRARIAN = "Librarian"
-GROUP_FINANCE_OFFICER = "Finance Officer"
-GROUP_USER_MANAGER = "User Manager"
 
-STAFF_ROLE_GROUP_NAMES = frozenset({
-    GROUP_LIBRARIAN,
-    GROUP_FINANCE_OFFICER,
-    GROUP_USER_MANAGER,
-})
+# Assignable models in the group management UI (app_label -> model names)
+ASSIGNABLE_APP_MODELS = {
+    "library": (
+        "account",
+        "author",
+        "book",
+        "borrow",
+        "category",
+        "fine",
+        "readingsession",
+        "reservation",
+    ),
+    "auth": ("group",),
+}
+
+FULL_ADMIN_GROUP_NAME = "Full Admin"
+
+# Built-in groups that must not be removed from the UI.
+PROTECTED_GROUP_NAMES = (
+    FULL_ADMIN_GROUP_NAME,
+    "Librarian",
+    "Finance Officer",
+    "User Manager",
+)
+
+
+# ---------------------------------------------------------------------------
+# Model permission strings (library + auth group management)
+# ---------------------------------------------------------------------------
+
+P_VIEW_ACCOUNT = "library.view_account"
+P_ADD_ACCOUNT = "library.add_account"
+P_CHANGE_ACCOUNT = "library.change_account"
+P_DELETE_ACCOUNT = "library.delete_account"
+
+P_VIEW_BOOK = "library.view_book"
+P_ADD_BOOK = "library.add_book"
+P_CHANGE_BOOK = "library.change_book"
+P_DELETE_BOOK = "library.delete_book"
+
+P_VIEW_AUTHOR = "library.view_author"
+P_ADD_AUTHOR = "library.add_author"
+P_CHANGE_AUTHOR = "library.change_author"
+P_DELETE_AUTHOR = "library.delete_author"
+
+P_VIEW_CATEGORY = "library.view_category"
+P_ADD_CATEGORY = "library.add_category"
+P_CHANGE_CATEGORY = "library.change_category"
+P_DELETE_CATEGORY = "library.delete_category"
+
+P_VIEW_BORROW = "library.view_borrow"
+P_ADD_BORROW = "library.add_borrow"
+P_CHANGE_BORROW = "library.change_borrow"
+P_DELETE_BORROW = "library.delete_borrow"
+
+P_VIEW_RESERVATION = "library.view_reservation"
+P_ADD_RESERVATION = "library.add_reservation"
+P_CHANGE_RESERVATION = "library.change_reservation"
+P_DELETE_RESERVATION = "library.delete_reservation"
+
+P_VIEW_FINE = "library.view_fine"
+P_ADD_FINE = "library.add_fine"
+P_CHANGE_FINE = "library.change_fine"
+P_DELETE_FINE = "library.delete_fine"
+
+P_VIEW_GROUP = "auth.view_group"
+P_ADD_GROUP = "auth.add_group"
+P_CHANGE_GROUP = "auth.change_group"
+P_DELETE_GROUP = "auth.delete_group"
+
+
+CATALOG_PERMS = (
+    P_VIEW_BOOK, P_ADD_BOOK, P_CHANGE_BOOK, P_DELETE_BOOK,
+    P_VIEW_AUTHOR, P_ADD_AUTHOR, P_CHANGE_AUTHOR, P_DELETE_AUTHOR,
+    P_VIEW_CATEGORY, P_ADD_CATEGORY, P_CHANGE_CATEGORY, P_DELETE_CATEGORY,
+)
+
+CIRCULATION_PERMS = (
+    P_VIEW_BORROW, P_ADD_BORROW, P_CHANGE_BORROW, P_DELETE_BORROW,
+    P_VIEW_RESERVATION, P_ADD_RESERVATION, P_CHANGE_RESERVATION, P_DELETE_RESERVATION,
+)
+
+FINANCE_PERMS = (P_VIEW_FINE, P_ADD_FINE, P_CHANGE_FINE, P_DELETE_FINE)
+
+USER_MANAGER_PERMS = (
+    P_VIEW_ACCOUNT, P_ADD_ACCOUNT, P_CHANGE_ACCOUNT, P_DELETE_ACCOUNT,
+    P_VIEW_GROUP, P_ADD_GROUP, P_CHANGE_GROUP, P_DELETE_GROUP,
+)
+
+
+# ---------------------------------------------------------------------------
+# Permission queries
+# ---------------------------------------------------------------------------
+
+def _assignable_q():
+    q = Permission.objects.none()
+    for app_label, models in ASSIGNABLE_APP_MODELS.items():
+        q = q | Permission.objects.filter(
+            content_type__app_label=app_label,
+            content_type__model__in=models,
+        )
+    return q.select_related("content_type").order_by(
+        "content_type__app_label",
+        "content_type__model",
+        "codename",
+    )
+
+
+def get_assignable_permissions():
+    """All permissions exposed in the group create/edit UI."""
+    return _assignable_q()
+
+
+def get_assignable_permission_ids() -> set[int]:
+    return set(get_assignable_permissions().values_list("id", flat=True))
+
+
+def group_permissions_by_app_model(permissions=None):
+    """
+    Nested dict for templates: {app_label: {model: [Permission, ...]}}.
+    """
+    if permissions is None:
+        permissions = get_assignable_permissions()
+    grouped = defaultdict(lambda: defaultdict(list))
+    for perm in permissions:
+        ct = perm.content_type
+        grouped[ct.app_label][ct.model].append(perm)
+    return grouped
+
+
+def group_has_staff_portal_access(group: Group) -> bool:
+    """True if the group grants any library or auth group-management permission."""
+    return group.permissions.filter(pk__in=get_assignable_permission_ids()).exists()
+
+
+def sync_user_staff_flags(user) -> None:
+    """
+    Set is_staff / is_member from group membership.
+    Staff portal users have is_staff=True when any assigned group grants staff access.
+    """
+    from .models import Account
+
+    if not user.pk:
+        return
+    if user.is_superuser:
+        Account.objects.filter(pk=user.pk).update(is_staff=True, is_member=False)
+        return
+
+    has_portal = (
+        Group.objects.filter(user=user)
+        .filter(permissions__id__in=get_assignable_permission_ids())
+        .exists()
+    )
+    Account.objects.filter(pk=user.pk).update(
+        is_staff=has_portal,
+        is_member=not has_portal,
+    )
+
+
+# ---------------------------------------------------------------------------
+# User permission checks
+# ---------------------------------------------------------------------------
 
 def is_portal_staff(user) -> bool:
-    """
-    True if this account may use the in-app staff panel (URLs under admin-panel).
-
-    Either the Django ``is_staff`` flag is set, or the user belongs to one of the
-    three library role groups. The latter fixes accounts that were only given groups
-    in Django admin without ``is_staff=True`` (they would otherwise behave as members).
-    """
+    """True if this account may use the in-app staff panel."""
     if not user.is_authenticated or not user.is_active:
-        is_portal = False
-    elif user.is_staff:
-        is_portal = True
-    else:
-        is_portal = user.groups.filter(name__in=STAFF_ROLE_GROUP_NAMES).exists()
-    return is_portal
-
-
-# Custom permission codenames on library.Account (full names for has_perm)
-PERM_ACCESS_STAFF_DASHBOARD = "library.access_staff_dashboard"
-PERM_MANAGE_CATALOG = "library.manage_catalog"
-PERM_MANAGE_CIRCULATION = "library.manage_circulation"
-PERM_MANAGE_FINES_STAFF = "library.manage_fines_staff"
-PERM_MANAGE_MEMBERS = "library.manage_members"
-PERM_MANAGE_STAFF_ACCOUNTS = "library.manage_staff_accounts"
-
-
-def user_has_assigned_staff_role(user) -> bool:
-    """True if the user belongs to at least one of the three named role groups."""
-    if not user.is_authenticated:
         return False
-    return user.groups.filter(name__in=STAFF_ROLE_GROUP_NAMES).exists()
+    return bool(user.is_staff)
 
 
-def is_legacy_full_staff(user) -> bool:
-    """
-    Staff with no assigned role group keeps the old behaviour (all staff areas).
-
-    Superusers are always treated as full staff for the in-app admin panel.
-    """
-    if not user.is_authenticated or not user.is_staff:
+def user_has_perm(user, perm: str) -> bool:
+    """Check a permission string (e.g. library.change_book). Superusers always pass."""
+    if not user.is_authenticated or not user.is_active:
         return False
     if user.is_superuser:
         return True
-    return not user_has_assigned_staff_role(user)
+    return user.has_perm(perm)
 
 
-def user_has_staff_perm(user, perm: str) -> bool:
-    """
-    Check a staff-only permission. Legacy full staff and superusers pass all checks.
-
-    `perm` must be the full string, e.g. ``library.manage_catalog``.
-    """
-    if not user.is_authenticated or not user.is_active or not is_portal_staff(user):
-        result = False
-        reason = "not_portal_or_inactive"
-    elif is_legacy_full_staff(user):
-        result = True
-        reason = "legacy_full_staff"
-    else:
-        result = user.has_perm(perm)
-        reason = "django_perm_check"
-    return result
+def user_has_any_perm(user, *perms: str) -> bool:
+    return any(user_has_perm(user, p) for p in perms)
 
 
-# Staff home template keys (see ``staff_dashboard_kind``).
+def user_has_all_perms(user, *perms: str) -> bool:
+    return all(user_has_perm(user, p) for p in perms)
+
+
+# ---------------------------------------------------------------------------
+# Staff dashboard routing
+# ---------------------------------------------------------------------------
+
 STAFF_DASHBOARD_FULL = "full"
 STAFF_DASHBOARD_FINANCE = "finance"
 STAFF_DASHBOARD_LIBRARIAN = "librarian"
@@ -95,57 +207,70 @@ STAFF_DASHBOARD_USER_MANAGER = "user_manager"
 
 
 def staff_dashboard_kind(user) -> str:
-    """
-    Which staff home page to show after login.
-
-    Legacy full staff and anyone with more than one functional area see the
-    combined ``full`` dashboard. Single-area roles get a dedicated home so they
-    never land on the member borrowing dashboard.
-    """
+    """Which staff home page to show after login."""
     if not is_portal_staff(user):
         return STAFF_DASHBOARD_FULL
-    if is_legacy_full_staff(user):
+
+    # Superusers satisfy every permission check via user_has_perm(); without this
+    # branch they would always land on finance (checked first among areas).
+    if getattr(user, "is_superuser", False):
         return STAFF_DASHBOARD_FULL
 
-    lib = user_has_staff_perm(user, PERM_MANAGE_CATALOG) or user_has_staff_perm(
-        user, PERM_MANAGE_CIRCULATION
-    )
-    fin = user_has_staff_perm(user, PERM_MANAGE_FINES_STAFF)
-    um = user_has_staff_perm(user, PERM_MANAGE_MEMBERS) or user_has_staff_perm(
-        user, PERM_MANAGE_STAFF_ACCOUNTS
-    )
+    lib = user_has_any_perm(user, *CATALOG_PERMS, *CIRCULATION_PERMS)
+    fin = user_has_any_perm(user, *FINANCE_PERMS)
+    um = user_has_any_perm(user, *USER_MANAGER_PERMS)
 
-    areas = [key for key, ok in (("lib", lib), ("fin", fin), ("um", um)) if ok]
+    # Exactly one functional area → dedicated dashboard.
+    # Multiple areas (e.g. Full Admin group) → combined staff overview.
+    areas = [key for key, ok in (("fin", fin), ("lib", lib), ("um", um)) if ok]
     if len(areas) != 1:
-        kind = STAFF_DASHBOARD_FULL
-    elif areas[0] == "fin":
-        kind = STAFF_DASHBOARD_FINANCE
-    elif areas[0] == "lib":
-        kind = STAFF_DASHBOARD_LIBRARIAN
-    else:
-        kind = STAFF_DASHBOARD_USER_MANAGER
-    return kind
+        return STAFF_DASHBOARD_FULL
+    if areas[0] == "fin":
+        return STAFF_DASHBOARD_FINANCE
+    if areas[0] == "lib":
+        return STAFF_DASHBOARD_LIBRARIAN
+    return STAFF_DASHBOARD_USER_MANAGER
 
 
-def require_staff_permissions(*perms: str, match_any: bool = True):
+def can_manage_groups(user) -> bool:
+    return user_has_any_perm(user, P_ADD_GROUP, P_CHANGE_GROUP)
+
+
+def can_delete_group(user) -> bool:
+    return user_has_perm(user, P_DELETE_GROUP)
+
+
+def is_group_deletable(group_name: str) -> bool:
+    return group_name not in PROTECTED_GROUP_NAMES
+
+
+def can_create_staff_account(user) -> bool:
+    """May open the add-staff form (create account + assign allowed groups)."""
+    return user_has_perm(user, P_ADD_ACCOUNT) and user_has_perm(user, P_CHANGE_ACCOUNT)
+
+
+# ---------------------------------------------------------------------------
+# Decorators
+# ---------------------------------------------------------------------------
+
+def require_permissions(*perms: str, match_any: bool = True, require_staff: bool = True):
     """
-    Decorator: user must be staff and satisfy permission checks (OR by default).
-
-    Example::
-
-        @require_staff_permissions(PERM_MANAGE_CATALOG)
-        def admin_book_list_view(request): ...
+    Decorator: user must satisfy permission checks (OR by default).
+    When require_staff=True, user must also be portal staff (is_staff).
     """
 
     if not perms:
-        raise ValueError("require_staff_permissions needs at least one permission string")
+        raise ValueError("require_permissions needs at least one permission string")
 
     def decorator(view_func):
         @wraps(view_func)
         def wrapper(request, *args, **kwargs):
-            if not request.user.is_authenticated or not is_portal_staff(request.user):
+            user = request.user
+            if not user.is_authenticated:
                 raise PermissionDenied
-            checks = [user_has_staff_perm(request.user, p) for p in perms]
+            if require_staff and not is_portal_staff(user):
+                raise PermissionDenied
+            checks = [user_has_perm(user, p) for p in perms]
             ok = any(checks) if match_any else all(checks)
             if not ok:
                 raise PermissionDenied
@@ -156,48 +281,13 @@ def require_staff_permissions(*perms: str, match_any: bool = True):
     return decorator
 
 
-def ensure_staff_role_groups_exist() -> None:
-    """
-    Idempotent safety net for dev DBs created before the data migration.
-    """
-    for name in STAFF_ROLE_GROUP_NAMES:
-        Group.objects.get_or_create(name=name)
+def require_staff_login(view_func):
+    """Staff panel entry: authenticated + is_staff (or superuser)."""
 
+    @wraps(view_func)
+    def wrapper(request, *args, **kwargs):
+        if not request.user.is_authenticated or not is_portal_staff(request.user):
+            raise PermissionDenied
+        return view_func(request, *args, **kwargs)
 
-def set_staff_role_groups(
-    user,
-    *,
-    full_access: bool,
-    librarian: bool = False,
-    finance_officer: bool = False,
-    user_manager: bool = False,
-) -> None:
-    """
-    Replace role-group membership for a staff account.
-
-    ``full_access=True`` clears all three role groups (legacy full staff behaviour).
-    Otherwise adds the selected groups (caller must ensure at least one flag).
-    """
-    ensure_staff_role_groups_exist()
-    role_groups = list(Group.objects.filter(name__in=STAFF_ROLE_GROUP_NAMES))
-    if role_groups:
-        user.groups.remove(*role_groups)
-    if full_access:
-        return
-    to_add = []
-    if librarian:
-        to_add.append(Group.objects.get(name=GROUP_LIBRARIAN))
-    if finance_officer:
-        to_add.append(Group.objects.get(name=GROUP_FINANCE_OFFICER))
-    if user_manager:
-        to_add.append(Group.objects.get(name=GROUP_USER_MANAGER))
-    if to_add:
-        user.groups.add(*to_add)
-
-    # Anyone with a library role must log in as staff, not as a borrowing member.
-    if user_has_assigned_staff_role(user):
-        from .models import Account
-
-        Account.objects.filter(pk=user.pk).update(is_staff=True, is_member=False)
-        user.is_staff = True
-        user.is_member = False
+    return wrapper

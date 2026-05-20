@@ -6,20 +6,21 @@ All redirect() calls use the 'library:' namespace (app_name = 'library').
 import datetime
 import logging
 
+from decimal import Decimal
+
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.models import Group, Permission
 from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
 from django.db import transaction                          # Bug fix #3: removed unused 'models'
-from decimal import Decimal
-
 from django.db.models import Count, DecimalField, ExpressionWrapper, F, Q, Sum, Value
 from django.db.models.functions import Coalesce
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from django.utils.html import escape
 from django.utils import timezone
+from django.utils.html import escape
 from django.views.decorators.http import require_POST, require_http_methods
 
 from .models import (
@@ -27,23 +28,43 @@ from .models import (
     Category, Fine, ReadingSession, Reservation,
 )
 from .roles import (
-    STAFF_ROLE_GROUP_NAMES,
-    PERM_ACCESS_STAFF_DASHBOARD,
-    PERM_MANAGE_CATALOG,
-    PERM_MANAGE_CIRCULATION,
-    PERM_MANAGE_FINES_STAFF,
-    PERM_MANAGE_MEMBERS,
-    PERM_MANAGE_STAFF_ACCOUNTS,
-    is_legacy_full_staff,
+    P_ADD_ACCOUNT,
+    P_ADD_AUTHOR,
+    P_ADD_BOOK,
+    P_ADD_CATEGORY,
+    P_ADD_GROUP,
+    P_CHANGE_ACCOUNT,
+    P_CHANGE_AUTHOR,
+    P_CHANGE_BOOK,
+    P_CHANGE_BORROW,
+    P_CHANGE_CATEGORY,
+    P_CHANGE_FINE,
+    P_CHANGE_GROUP,
+    P_CHANGE_RESERVATION,
+    P_DELETE_ACCOUNT,
+    P_DELETE_BOOK,
+    P_VIEW_FINE,
+    P_VIEW_ACCOUNT,
+    P_VIEW_BOOK,
+    P_VIEW_BORROW,
+    P_VIEW_GROUP,
     STAFF_DASHBOARD_FINANCE,
     STAFF_DASHBOARD_LIBRARIAN,
     STAFF_DASHBOARD_USER_MANAGER,
-    ensure_staff_role_groups_exist,
+    P_DELETE_GROUP,
+    can_delete_group,
+    can_manage_groups,
+    is_group_deletable,
+    get_assignable_permission_ids,
+    get_assignable_permissions,
+    group_has_staff_portal_access,
+    group_permissions_by_app_model,
     is_portal_staff,
-    require_staff_permissions,
-    set_staff_role_groups,
+    require_permissions,
+    require_staff_login,
     staff_dashboard_kind,
-    user_has_staff_perm,
+    sync_user_staff_flags,
+    user_has_perm,
 )
 
 logger = logging.getLogger(__name__)
@@ -249,7 +270,7 @@ def login_view(request):
         next_url = request.GET.get("next", "").strip()
         if next_url:
             return redirect(next_url)
-        staff_portal = is_portal_staff(user) and user_has_staff_perm(user, PERM_ACCESS_STAFF_DASHBOARD)
+        staff_portal = is_portal_staff(user)
         return redirect("library:admin_dashboard" if staff_portal else "library:dashboard")
 
     return render(request, "auth/login.html")
@@ -270,10 +291,7 @@ def logout_view(request):
 
 @login_required
 def dashboard_view(request):
-    staff_portal = is_portal_staff(request.user) and user_has_staff_perm(
-        request.user, PERM_ACCESS_STAFF_DASHBOARD
-    )
-    if staff_portal:
+    if is_portal_staff(request.user):
         return redirect("library:admin_dashboard")
 
     _apply_overdue_statuses()
@@ -311,7 +329,7 @@ def dashboard_view(request):
 
 
 @login_required
-@require_staff_permissions(PERM_ACCESS_STAFF_DASHBOARD)
+@require_staff_login
 def admin_dashboard_view(request):
     _apply_overdue_statuses()
 
@@ -331,9 +349,7 @@ def admin_dashboard_view(request):
         "total_books_count":          Book.objects.count(),
         "total_users_count":          Account.objects.count(),
         "total_members_count":        Account.objects.filter(is_member=True, is_staff=False).count(),
-        "total_admins_count":         Account.objects.filter(
-            is_staff=True, groups__name__in=STAFF_ROLE_GROUP_NAMES
-        ).distinct().count(),
+        "total_admins_count":         Account.objects.filter(is_staff=True).count(),
         "active_borrows_count":       Borrow.objects.exclude(status=Borrow.Status.RETURNED).count(),
         "overdue_borrows_count":      Borrow.objects.filter(status=Borrow.Status.OVERDUE).count(),
         "pending_reservations_count": Reservation.objects.filter(status=Reservation.Status.PENDING).count(),
@@ -342,6 +358,7 @@ def admin_dashboard_view(request):
         "outstanding_fines_total":    outstanding_fines_total,
         "recent_borrow_list":         recent_borrow_list,
         "staff_dashboard_kind":       staff_dashboard_kind(request.user),
+        "can_manage_groups":          can_manage_groups(request.user),
     }
 
     kind = ctx["staff_dashboard_kind"]
@@ -688,7 +705,7 @@ def reading_check_out_view(request):
 # ===========================================================================
 
 @login_required
-@require_staff_permissions(PERM_MANAGE_CATALOG)
+@require_permissions(P_VIEW_BOOK, P_CHANGE_BOOK, P_ADD_BOOK)
 def admin_book_list_view(request):
     _apply_overdue_statuses()
     query = request.GET.get("q", "").strip()
@@ -700,7 +717,7 @@ def admin_book_list_view(request):
 
 
 @login_required
-@require_staff_permissions(PERM_MANAGE_CATALOG)
+@require_permissions(P_VIEW_BOOK, P_CHANGE_BOOK, P_ADD_BOOK)
 @require_http_methods(["GET", "POST"])
 def admin_book_create_view(request):
     if request.method == "POST":
@@ -743,7 +760,7 @@ def admin_book_create_view(request):
 
 
 @login_required
-@require_staff_permissions(PERM_MANAGE_CATALOG)
+@require_permissions(P_VIEW_BOOK, P_CHANGE_BOOK, P_ADD_BOOK)
 @require_http_methods(["GET", "POST"])
 def admin_book_edit_view(request, book_id):
     book = get_object_or_404(Book, pk=book_id)
@@ -787,7 +804,7 @@ def admin_book_edit_view(request, book_id):
 
 
 @login_required
-@require_staff_permissions(PERM_MANAGE_CATALOG)
+@require_permissions(P_DELETE_BOOK)
 @require_POST
 def admin_book_delete_view(request, book_id):
     book  = get_object_or_404(Book, pk=book_id)
@@ -813,7 +830,7 @@ def admin_book_delete_view(request, book_id):
 # ===========================================================================
 
 @login_required
-@require_staff_permissions(PERM_MANAGE_CATALOG)
+@require_permissions(P_ADD_AUTHOR, P_CHANGE_AUTHOR)
 @require_http_methods(["GET", "POST"])
 def admin_author_create_view(request):
     if request.method == "POST":
@@ -833,7 +850,7 @@ def admin_author_create_view(request):
 
 
 @login_required
-@require_staff_permissions(PERM_MANAGE_CATALOG)
+@require_permissions(P_ADD_CATEGORY, P_CHANGE_CATEGORY)
 @require_http_methods(["GET", "POST"])
 def admin_category_create_view(request):
     if request.method == "POST":
@@ -857,7 +874,7 @@ def admin_category_create_view(request):
 # ===========================================================================
 
 @login_required
-@require_staff_permissions(PERM_MANAGE_MEMBERS)
+@require_permissions(P_VIEW_ACCOUNT, P_CHANGE_ACCOUNT)
 def admin_member_list_view(request):
     """
     Unified user list — filterable by role:
@@ -868,10 +885,10 @@ def admin_member_list_view(request):
     query       = request.GET.get("q",    "").strip()
     role_filter = request.GET.get("role", "").strip()
 
-    role_staff_q = Q(is_staff=True, groups__name__in=STAFF_ROLE_GROUP_NAMES)
+    role_staff_q = Q(is_staff=True)
     users = (
         Account.objects
-        .filter(Q(is_staff=False) | role_staff_q)  # hide legacy staff accounts from this list
+        .filter(Q(is_staff=False) | role_staff_q)
         .distinct()
         .order_by("last_name", "first_name")
         .prefetch_related("groups")
@@ -895,6 +912,10 @@ def admin_member_list_view(request):
         "page_obj":    page,
         "query":       query,
         "role_filter": role_filter,
+        "current_user_id": request.user.id,
+        "can_create_users": user_has_perm(request.user, P_ADD_ACCOUNT),
+        "can_update_members": user_has_perm(request.user, P_CHANGE_ACCOUNT),
+        "can_delete_members": user_has_perm(request.user, P_DELETE_ACCOUNT),
         "total_all":     Account.objects.filter(Q(is_staff=False) | role_staff_q).distinct().count(),
         "total_members": Account.objects.filter(is_member=True, is_staff=False).count(),
         "total_admins":  Account.objects.filter(role_staff_q).distinct().count(),
@@ -902,10 +923,11 @@ def admin_member_list_view(request):
 
 
 @login_required
-@require_staff_permissions(
-    PERM_MANAGE_MEMBERS,
-    PERM_MANAGE_CIRCULATION,
-    PERM_MANAGE_FINES_STAFF,
+@require_permissions(
+    P_VIEW_ACCOUNT,
+    P_CHANGE_ACCOUNT,
+    P_CHANGE_BORROW,
+    P_CHANGE_FINE,
 )
 def admin_member_detail_view(request, member_id):
     member       = get_object_or_404(Account, pk=member_id, is_member=True)
@@ -915,12 +937,15 @@ def admin_member_detail_view(request, member_id):
     return render(request, "admin/member_detail.html", {
         "member": member, "borrows": borrows,
         "fines": fines, "reservations": reservations,
-        "can_manage_members": user_has_staff_perm(request.user, PERM_MANAGE_MEMBERS),
+        "can_manage_members": user_has_perm(request.user, P_CHANGE_ACCOUNT),
+        "can_delete_members": user_has_perm(request.user, P_DELETE_ACCOUNT),
+        "can_manage_staff_accounts": can_manage_groups(request.user),
+        "all_groups": _get_assignable_groups(request.user) if can_manage_groups(request.user) else None,
     })
 
 
 @login_required
-@require_staff_permissions(PERM_MANAGE_MEMBERS)
+@require_permissions(P_CHANGE_ACCOUNT)
 @require_POST
 def admin_toggle_member_active_view(request, member_id):
     member           = get_object_or_404(Account, pk=member_id)
@@ -932,12 +957,66 @@ def admin_toggle_member_active_view(request, member_id):
     return redirect("library:admin_member_list")
 
 
+@login_required
+@require_permissions(P_DELETE_ACCOUNT)
+@require_POST
+def admin_member_delete_view(request, member_id):
+    member = get_object_or_404(Account, pk=member_id)
+    if member.pk == request.user.pk:
+        messages.error(request, "You cannot delete your own account.")
+        return redirect("library:admin_member_list")
+    if member.is_superuser:
+        messages.error(request, "Superuser accounts cannot be deleted.")
+        return redirect("library:admin_member_list")
+
+    full_name = member.get_full_name() or member.email
+    try:
+        member.delete()
+        messages.success(request, f"User '{full_name}' has been deleted.")
+        logger.info("Member deleted: id=%s by staff %s", member_id, request.user.email)
+    except Exception as exc:
+        logger.exception("Member delete failed: id=%s: %s", member_id, exc)
+        messages.error(request, "Could not delete user. Please try again.")
+    return redirect("library:admin_member_list")
+
+
+@login_required
+@require_permissions(P_CHANGE_ACCOUNT)
+@require_POST
+def admin_member_roles_update_view(request, member_id):
+    """
+    Update the auth groups (roles) for a user.
+    """
+    member = get_object_or_404(Account, pk=member_id)
+    group_ids = request.POST.getlist("groups")
+
+    try:
+        requested_ids = {int(x) for x in group_ids}
+    except Exception as exc:
+        logger.exception("Group update invalid ids for member_id=%s: %s", member_id, exc)
+        messages.error(request, "Invalid group selection.")
+        return redirect("library:admin_member_detail", member_id=member_id)
+
+    allowed_ids = _get_assignable_group_ids(request.user)
+    if not requested_ids.issubset(allowed_ids):
+        raise PermissionDenied
+
+    groups = list(Group.objects.filter(id__in=requested_ids))
+    member.groups.set(groups)
+    sync_user_staff_flags(member)
+
+    messages.success(request, "Groups updated successfully.")
+    logger.info("Groups updated for member_id=%s by staff %s", member_id, request.user.email)
+
+    return redirect("library:admin_member_detail", member_id=member_id)
+
+
 # ===========================================================================
 # 13. Admin — Loans
 # ===========================================================================
 
 @login_required
-@require_staff_permissions(PERM_MANAGE_CIRCULATION)
+@require_permissions(P_VIEW_BORROW, P_CHANGE_BORROW, P_CHANGE_RESERVATION)
 def admin_loan_list_view(request):
     _apply_overdue_statuses()
     status_filter = request.GET.get("status", "").strip()
@@ -956,7 +1035,7 @@ def admin_loan_list_view(request):
 
 
 @login_required
-@require_staff_permissions(PERM_MANAGE_CIRCULATION)
+@require_permissions(P_VIEW_BORROW, P_CHANGE_BORROW, P_CHANGE_RESERVATION)
 @require_POST
 def admin_mark_returned_view(request, borrow_id):
     borrow = get_object_or_404(Borrow, pk=borrow_id)
@@ -999,10 +1078,7 @@ def landing_view(request):
     Authenticated users are sent straight to their dashboard.
     """
     if request.user.is_authenticated:
-        staff_portal = (
-            is_portal_staff(request.user)
-            and user_has_staff_perm(request.user, PERM_ACCESS_STAFF_DASHBOARD)
-        )
+        staff_portal = is_portal_staff(request.user)
         return redirect("library:admin_dashboard" if staff_portal else "library:dashboard")
 
     from django.db.models import Sum
@@ -1089,7 +1165,7 @@ def profile_edit_view(request):
 # ===========================================================================
 
 @login_required
-@require_staff_permissions(PERM_MANAGE_FINES_STAFF)
+@require_permissions(P_VIEW_FINE, P_CHANGE_FINE)
 def admin_fine_list_view(request):
     """All fines filterable by paid / unpaid."""
     status_filter = request.GET.get("status", "").strip()
@@ -1129,7 +1205,7 @@ def admin_fine_list_view(request):
 # ===========================================================================
 
 @login_required
-@require_staff_permissions(PERM_MANAGE_CIRCULATION)
+@require_permissions(P_VIEW_BORROW, P_CHANGE_BORROW, P_CHANGE_RESERVATION)
 def admin_reservation_list_view(request):
     """All reservations filterable by status."""
     status_filter = request.GET.get("status", "").strip()
@@ -1166,18 +1242,14 @@ def admin_reservation_list_view(request):
 # ===========================================================================
 
 @login_required
-@require_staff_permissions(PERM_MANAGE_STAFF_ACCOUNTS)
+@require_permissions(P_ADD_ACCOUNT, P_CHANGE_ACCOUNT, match_any=False)
 @require_http_methods(["GET", "POST"])
 def admin_create_staff_view(request):
     """
-    Create a staff account.
-
-    Business rule:
-      - User Manager can only create Finance Officer and/or Librarian accounts
-      - Legacy full staff (is_staff with no role groups) is not creatable from this UI
-      - Creating another User Manager is not allowed from this UI
+    Create a staff account using built-in Django groups.
     """
-    allow_full_access = is_legacy_full_staff(request.user) or request.user.is_superuser
+    selectable_groups = _get_assignable_groups(request.user)
+
     if request.method == "POST":
         first_name = request.POST.get("first_name", "").strip()
         last_name  = request.POST.get("last_name",  "").strip()
@@ -1186,11 +1258,7 @@ def admin_create_staff_view(request):
         phone      = request.POST.get("phone",      "").strip()
         password1  = request.POST.get("password1",  "")
         password2  = request.POST.get("password2",  "")
-
-        role_librarian = request.POST.get("role_librarian") == "on"
-        role_finance   = request.POST.get("role_finance_officer") == "on"
-        role_user_mgr  = False
-        full_access = False
+        selected_group_ids = request.POST.getlist("groups")
 
         errors = []
         if not all([first_name, last_name, email, username, password1]):
@@ -1203,18 +1271,33 @@ def admin_create_staff_view(request):
             errors.append("An account with this email already exists.")
         if Account.objects.filter(username=username).exists():
             errors.append("This username is already taken.")
-        if not any([role_librarian, role_finance]):
-            errors.append(
-                "Select at least one staff role (Finance Officer and/or Librarian)."
-            )
+        if not selected_group_ids:
+            errors.append("Select at least one role group.")
 
         if errors:
             for e in errors:
                 messages.error(request, e)
-            return render(request, "admin/create_staff.html", {"form_data": request.POST})
+            return render(request, "admin/create_staff.html", {
+                "form_data": request.POST,
+                "selectable_groups": selectable_groups,
+                "selected_group_ids": selected_group_ids,
+            })
 
         try:
-            ensure_staff_role_groups_exist()
+            requested_ids = {int(x) for x in selected_group_ids}
+        except (TypeError, ValueError):
+            messages.error(request, "Invalid role group selection.")
+            return render(request, "admin/create_staff.html", {
+                "form_data": request.POST,
+                "selectable_groups": selectable_groups,
+                "selected_group_ids": selected_group_ids,
+            })
+
+        allowed_ids = set(selectable_groups.values_list("id", flat=True))
+        if not requested_ids.issubset(allowed_ids):
+            raise PermissionDenied
+
+        try:
             user = Account.objects.create_user(
                 username   = username,
                 email      = email,
@@ -1222,25 +1305,21 @@ def admin_create_staff_view(request):
                 first_name = first_name,
                 last_name  = last_name,
                 phone      = phone or "",
-                is_staff   = True,
-                is_member  = False,
+                is_staff   = False,
+                is_member  = True,
             )
-            set_staff_role_groups(
-                user,
-                full_access=full_access,
-                librarian=role_librarian,
-                finance_officer=role_finance,
-                user_manager=role_user_mgr,
-            )
+            groups = list(Group.objects.filter(id__in=requested_ids))
+            user.groups.set(groups)
+            sync_user_staff_flags(user)
+
             messages.success(
                 request,
                 f"Staff account for {user.get_full_name()} created successfully.",
             )
             logger.info(
-                "Staff account created: %s by %s (full_access=%s)",
+                "Staff account created: %s by %s",
                 email,
                 request.user.email,
-                full_access,
             )
             return redirect("library:admin_dashboard")
 
@@ -1248,7 +1327,288 @@ def admin_create_staff_view(request):
             logger.exception("Staff creation failed: %s", exc)
             messages.error(request, "Could not create account. Please try again.")
 
-    return render(request, "admin/create_staff.html", {"form_data": None, "allow_full_access": allow_full_access})
+    return render(request, "admin/create_staff.html", {
+        "form_data": None,
+        "selectable_groups": selectable_groups,
+        "selected_group_ids": [],
+    })
+
+
+# ===========================================================================
+# Admin — Groups (list / create / edit)
+# ===========================================================================
+
+
+def _is_privileged_group_editor(user) -> bool:
+    """Only superusers may bypass delegation restrictions."""
+    return bool(user and user.is_authenticated and user.is_superuser)
+
+
+def _user_assignable_permission_ids(user) -> set[int]:
+    if not user or not user.is_authenticated:
+        return set()
+    if user.is_superuser:
+        return get_assignable_permission_ids()
+    return {
+        p.id
+        for p in get_assignable_permissions()
+        if user.has_perm(f"{p.content_type.app_label}.{p.codename}")
+    }
+
+
+def _get_assignable_group_ids(user) -> set[int]:
+    """
+    Delegation rule (least privilege):
+    - privileged editors can assign any group
+    - others can only assign groups whose permission set is a subset of theirs
+    """
+    if not user or not user.is_authenticated:
+        return set()
+
+    if _is_privileged_group_editor(user):
+        return set(Group.objects.values_list("id", flat=True))
+
+    allowed_perm_ids = _user_assignable_permission_ids(user)
+    if not allowed_perm_ids:
+        return set()
+
+    assignable_ids = get_assignable_permission_ids()
+    manageable_ids: set[int] = set()
+    for g in Group.objects.prefetch_related("permissions").all():
+        group_perm_ids = {
+            p.id for p in g.permissions.all() if p.id in assignable_ids
+        }
+        if group_perm_ids and group_perm_ids.issubset(allowed_perm_ids):
+            manageable_ids.add(g.id)
+
+    return manageable_ids
+
+
+def _get_assignable_groups(user):
+    ids = _get_assignable_group_ids(user)
+    if not ids:
+        return Group.objects.none()
+    qs = Group.objects.filter(id__in=ids).order_by("name")
+    if user and user.is_authenticated and not user.is_superuser:
+        from .roles import FULL_ADMIN_GROUP_NAME
+        qs = qs.exclude(name=FULL_ADMIN_GROUP_NAME)
+    return qs
+
+
+def _parse_selected_permission_ids(request, user=None) -> set[int]:
+    assignable = get_assignable_permission_ids()
+    if user and not user.is_superuser:
+        # Non-superusers may only grant permissions they already hold.
+        assignable = assignable.intersection(_user_assignable_permission_ids(user))
+    selected = set()
+    for raw in request.POST.getlist("perm_id"):
+        try:
+            pid = int(raw)
+        except (TypeError, ValueError):
+            continue
+        if pid in assignable:
+            selected.add(pid)
+    return selected
+
+
+def _group_form_context(mode, *, user=None, group=None, form_data=None, selected_perm_ids=None):
+    permissions = get_assignable_permissions()
+    if user and not user.is_superuser:
+        allowed_ids = _user_assignable_permission_ids(user)
+        permissions = [p for p in permissions if p.id in allowed_ids]
+
+    permission_groups = group_permissions_by_app_model(permissions)
+    permission_sections = []
+    for app_label, model_map in permission_groups.items():
+        models = []
+        for model_name, perms in model_map.items():
+            models.append(
+                {
+                    "model_name": model_name,
+                    "perms": list(perms),
+                }
+            )
+        permission_sections.append(
+            {
+                "app_label": app_label,
+                "models": models,
+            }
+        )
+
+    return {
+        "mode": mode,
+        "group": group,
+        "form_data": form_data,
+        "permission_sections": permission_sections,
+        "selected_perm_ids": selected_perm_ids or set(),
+    }
+
+
+@login_required
+@require_permissions(P_VIEW_GROUP, P_ADD_GROUP, P_CHANGE_GROUP)
+def admin_group_list_view(request):
+    """List all auth groups and their Django permissions."""
+    assignable_ids = get_assignable_permission_ids()
+    groups = Group.objects.prefetch_related("permissions__content_type").order_by("name")
+
+    rows = []
+    for g in groups:
+        g_perms = [p for p in g.permissions.all() if p.id in assignable_ids]
+        user_count = Account.objects.filter(groups=g).count()
+        rows.append(
+            {
+                "group": g,
+                "permissions": sorted(g_perms, key=lambda p: (p.content_type.model, p.codename)),
+                "is_staff_portal": group_has_staff_portal_access(g),
+                "user_count": user_count,
+                "can_delete": (
+                    can_delete_group(request.user)
+                    and is_group_deletable(g.name)
+                    and user_count == 0
+                ),
+            }
+        )
+
+    return render(request, "admin/group_list.html", {
+        "rows": rows,
+        "can_manage_groups": _is_privileged_group_editor(request.user),
+        "can_delete_groups": can_delete_group(request.user),
+    })
+
+
+@login_required
+@require_permissions(P_ADD_GROUP, P_CHANGE_GROUP)
+@require_http_methods(["GET", "POST"])
+def admin_group_create_view(request):
+    """Create a new auth group with selected Django permissions."""
+    if not user_has_perm(request.user, P_ADD_GROUP):
+        raise PermissionDenied
+
+    if request.method == "POST":
+        name = request.POST.get("name", "").strip()
+        selected_ids = _parse_selected_permission_ids(request, request.user)
+
+        errors = []
+        if not name:
+            errors.append("Group name is required.")
+        if Group.objects.filter(name__iexact=name).exists():
+            errors.append("A group with this name already exists.")
+        if not selected_ids:
+            errors.append("Select at least one permission for this group.")
+
+        if errors:
+            for e in errors:
+                messages.error(request, e)
+            return render(
+                request,
+                "admin/group_form.html",
+                _group_form_context("create", user=request.user, form_data=request.POST, selected_perm_ids=selected_ids),
+            )
+
+        try:
+            group = Group.objects.create(name=name)
+            group.permissions.set(
+                Permission.objects.filter(pk__in=selected_ids)
+            )
+            for user in Account.objects.filter(groups=group):
+                sync_user_staff_flags(user)
+            messages.success(request, f"Group '{group.name}' created successfully.")
+            return redirect("library:admin_group_list")
+        except Exception as exc:
+            logger.exception("Group creation failed: %s", exc)
+            messages.error(request, "Could not create group. Please try again.")
+
+    return render(request, "admin/group_form.html", _group_form_context("create", user=request.user))
+
+
+@login_required
+@require_permissions(P_CHANGE_GROUP)
+@require_http_methods(["GET", "POST"])
+def admin_group_edit_view(request, group_id):
+    """Edit an existing auth group and its Django permissions."""
+    group = get_object_or_404(Group, pk=group_id)
+
+    if request.method == "POST":
+        name = request.POST.get("name", "").strip()
+        selected_ids = _parse_selected_permission_ids(request, request.user)
+
+        errors = []
+        if not name:
+            errors.append("Group name is required.")
+        if Group.objects.filter(name__iexact=name).exclude(pk=group.pk).exists():
+            errors.append("Another group with this name already exists.")
+        if not selected_ids:
+            errors.append("Select at least one permission for this group.")
+
+        if errors:
+            for e in errors:
+                messages.error(request, e)
+            return render(
+                request,
+                "admin/group_form.html",
+                _group_form_context(
+                    "edit",
+                    user=request.user,
+                    group=group,
+                    form_data=request.POST,
+                    selected_perm_ids=selected_ids,
+                ),
+            )
+
+        try:
+            group.name = name
+            group.save(update_fields=["name"])
+            group.permissions.set(
+                Permission.objects.filter(pk__in=selected_ids)
+            )
+            for user in Account.objects.filter(groups=group):
+                sync_user_staff_flags(user)
+            messages.success(request, f"Group '{group.name}' updated successfully.")
+            return redirect("library:admin_group_list")
+        except Exception as exc:
+            logger.exception("Group update failed: group_id=%s: %s", group_id, exc)
+            messages.error(request, "Could not update group. Please try again.")
+
+    assignable_ids = get_assignable_permission_ids()
+    current_ids = {
+        p.id for p in group.permissions.all() if p.id in assignable_ids
+    }
+    return render(
+        request,
+        "admin/group_form.html",
+        _group_form_context("edit", user=request.user, group=group, selected_perm_ids=current_ids),
+    )
+
+
+@login_required
+@require_permissions(P_DELETE_GROUP)
+@require_POST
+def admin_group_delete_view(request, group_id):
+    """Delete an auth group when it has no members and is not a protected system group."""
+    group = get_object_or_404(Group, pk=group_id)
+    name = group.name
+
+    if not is_group_deletable(name):
+        messages.error(request, f"Group '{name}' is a protected system group and cannot be deleted.")
+        return redirect("library:admin_group_list")
+
+    user_count = Account.objects.filter(groups=group).count()
+    if user_count > 0:
+        messages.error(
+            request,
+            f"Cannot delete '{name}' — {user_count} user(s) still belong to this group. Reassign them first.",
+        )
+        return redirect("library:admin_group_list")
+
+    try:
+        group.delete()
+        messages.success(request, f"Group '{name}' deleted successfully.")
+        logger.info("Group deleted: %s by %s", name, request.user.email)
+    except Exception as exc:
+        logger.exception("Group delete failed: group_id=%s: %s", group_id, exc)
+        messages.error(request, "Could not delete group. Please try again.")
+
+    return redirect("library:admin_group_list")
 
 
 # ===========================================================================
@@ -1257,7 +1617,7 @@ def admin_create_staff_view(request):
 
 
 @login_required
-@require_staff_permissions(PERM_MANAGE_CATALOG)
+@require_permissions(P_VIEW_BOOK, P_CHANGE_BOOK, P_ADD_BOOK)
 @require_POST
 def author_create_json(request):
     """
@@ -1279,7 +1639,7 @@ def author_create_json(request):
 
 
 @login_required
-@require_staff_permissions(PERM_MANAGE_CATALOG)
+@require_permissions(P_VIEW_BOOK, P_CHANGE_BOOK, P_ADD_BOOK)
 @require_POST
 def category_create_json(request):
     """
