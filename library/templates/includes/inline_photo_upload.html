@@ -1,0 +1,30 @@
+{# name_id, photo_id, preview_id, fallback_id, initial_id, accent=#0d3b6e #}
+<div class="d-flex align-items-center gap-3 flex-wrap mb-3">
+  <div style="position:relative;width:72px;height:72px;flex-shrink:0">
+    <img id="{{ preview_id }}"
+         src=""
+         alt="Photo preview"
+         class="rounded-circle border shadow-sm d-none"
+         style="width:72px;height:72px;object-fit:cover"/>
+    <div id="{{ fallback_id }}"
+         class="rounded-circle d-flex align-items-center justify-content-center border shadow-sm"
+         style="width:72px;height:72px;background:{{ accent|default:'#0d3b6e' }};color:#fff;font-size:1.5rem;font-weight:700">
+      <span id="{{ initial_id }}">?</span>
+    </div>
+  </div>
+  <div class="flex-grow-1">
+    <label for="{{ photo_id }}" class="form-label fw-semibold mb-1">
+      Photo <span class="text-muted fw-normal">(optional)</span>
+    </label>
+    <input type="file"
+           class="form-control form-control-sm"
+           id="{{ photo_id }}"
+           name="photo"
+           accept="image/jpeg,image/png,image/webp,image/gif"
+           data-preview="#{{ preview_id }}"
+           data-fallback="#{{ fallback_id }}"
+           data-initial="#{{ initial_id }}"
+           data-name="#{{ name_id }}"/>
+    <div class="form-text">JPG, PNG, WebP or GIF · Max 5 MB</div>
+  </div>
+</div>

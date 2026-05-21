@@ -3,15 +3,7 @@
 
 {% block content %}
 
-<div class="d-flex justify-content-between align-items-center mb-4">
-  <div>
-    <h4 class="fw-bold mb-0">Staff overview</h4>
-    <small class="text-muted">Full library management</small>
-  </div>
-  <a href="{% url 'library:book_list' %}" class="btn btn-outline-dark btn-sm">
-    <i class="fa-solid fa-eye me-1"></i>Public Site
-  </a>
-</div>
+{% include "includes/dashboard_header.html" with title="Staff overview" subtitle="Full library management" show_public_site=1 %}
 
 {# Stat cards — integers only; never {% for %} on _count variables. #}
 <div class="row g-3 mb-4">

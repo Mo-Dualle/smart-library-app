@@ -3,19 +3,8 @@
 
 {% block content %}
 
-<!-- Breadcrumb -->
-<nav aria-label="breadcrumb" class="mb-4">
-  <ol class="breadcrumb">
-    <li class="breadcrumb-item">
-      {% if can_manage_members %}
-        <a href="{% url 'library:admin_member_list' %}">Users</a>
-      {% else %}
-        <a href="{% url 'library:admin_dashboard' %}">Dashboard</a>
-      {% endif %}
-    </li>
-    <li class="breadcrumb-item active">{{ member.get_full_name }}</li>
-  </ol>
-</nav>
+{% url 'library:admin_member_list' as users_url %}
+{% include "includes/breadcrumb_bar.html" with title=member.get_full_name parent_label="Users" parent_url=users_url %}
 
 <!-- Profile card -->
 <div class="card border-0 shadow-sm mb-4">
@@ -24,9 +13,11 @@
 
       <!-- Avatar + name -->
       <div class="col-auto">
-        <div class="avatar-circle" style="width:72px;height:72px;font-size:1.8rem">
-          {{ member.first_name|first|upper }}
-        </div>
+        {% if member.is_staff %}
+          {% include "includes/user_avatar.html" with account=member size=72 variant="staff" %}
+        {% else %}
+          {% include "includes/user_avatar.html" with account=member size=72 variant="member" %}
+        {% endif %}
       </div>
 
       <div class="col">

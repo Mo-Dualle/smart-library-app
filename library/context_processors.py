@@ -1,6 +1,8 @@
 """Template context mirroring Django model permission checks."""
 
 from .roles import (
+    is_portal_staff,
+    staff_dashboard_label,
     P_ADD_ACCOUNT,
     P_ADD_BOOK,
     P_ADD_GROUP,
@@ -15,7 +17,6 @@ from .roles import (
     P_VIEW_BOOK,
     P_VIEW_GROUP,
     can_create_staff_account,
-    is_portal_staff,
     user_has_any_perm,
     user_has_perm,
     CATALOG_PERMS,
@@ -28,9 +29,19 @@ from .roles import (
 def staff_access(request):
     """Expose booleans for navbar and admin UI; None when not applicable."""
     user = getattr(request, "user", None)
-    if not user or not user.is_authenticated or not is_portal_staff(user):
-        return {"staff_access": None}
+    if not user or not user.is_authenticated:
+        return {"staff_access": None, "staff_nav": None, "member_nav": None}
+    if not is_portal_staff(user):
+        return {
+            "staff_access": None,
+            "staff_nav": None,
+            "member_nav": {"dashboard_label": "My dashboard"},
+        }
     return {
+        "staff_nav": {
+            "dashboard_label": staff_dashboard_label(user),
+        },
+        "member_nav": None,
         "staff_access": {
             "portal": True,
             "catalog": user_has_any_perm(user, *CATALOG_PERMS),

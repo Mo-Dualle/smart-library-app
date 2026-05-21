@@ -205,6 +205,13 @@ STAFF_DASHBOARD_FINANCE = "finance"
 STAFF_DASHBOARD_LIBRARIAN = "librarian"
 STAFF_DASHBOARD_USER_MANAGER = "user_manager"
 
+STAFF_DASHBOARD_LABELS = {
+    STAFF_DASHBOARD_FULL: "Staff overview",
+    STAFF_DASHBOARD_FINANCE: "Finance dashboard",
+    STAFF_DASHBOARD_LIBRARIAN: "Librarian dashboard",
+    STAFF_DASHBOARD_USER_MANAGER: "User management",
+}
+
 
 def staff_dashboard_kind(user) -> str:
     """Which staff home page to show after login."""
@@ -230,6 +237,11 @@ def staff_dashboard_kind(user) -> str:
     if areas[0] == "lib":
         return STAFF_DASHBOARD_LIBRARIAN
     return STAFF_DASHBOARD_USER_MANAGER
+
+
+def staff_dashboard_label(user) -> str:
+    """Human-readable staff home label for breadcrumbs."""
+    return STAFF_DASHBOARD_LABELS[staff_dashboard_kind(user)]
 
 
 def can_manage_groups(user) -> bool:

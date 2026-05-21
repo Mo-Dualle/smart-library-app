@@ -2,8 +2,9 @@
 {% block title %}Books — LibraryApp{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <h4 class="fw-bold mb-0">Book Catalog
+{% include "includes/breadcrumb_bar.html" with nav_root="catalog" catalog_home=1 title="Book catalog" %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h4 class="fw-bold mb-0">Book catalog
     <span class="badge bg-secondary ms-2 fs-6">{{ page_obj.paginator.count }}</span>
   </h4>
 </div>

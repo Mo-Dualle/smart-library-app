@@ -2,34 +2,32 @@
 {% block title %}Add Author — LibraryApp{% endblock %}
 
 {% block content %}
-<div class="page" style="max-width:480px">
+{% url 'library:admin_book_list' as books_url %}
+{% include "includes/breadcrumb_bar.html" with title="Add author" parent_label="Manage books" parent_url=books_url active_label="Add author" %}
 
-  <nav style="font-size:.85rem;color:var(--text-muted);margin-bottom:1.5rem">
-    <a href="{% url 'library:admin_book_list' %}" style="color:var(--navy)">Books</a>
-    <span style="margin:0 .4rem">/</span> Add Author
-  </nav>
+<div class="row justify-content-center">
+  <div class="col-lg-6">
+    <h4 class="fw-bold mb-4"><i class="fa-solid fa-pen-nib me-2"></i>Add author</h4>
 
-  <h1 style="color:var(--navy);margin-bottom:1.8rem">
-    <i class="fa-solid fa-pen-nib"></i> Add Author
-  </h1>
-
-  <div class="card" style="padding:2rem">
-    <form method="post" action="{% url 'library:admin_author_create' %}">
-      {% csrf_token %}
-      <div class="form-group">
-        <label class="form-label" for="name">Author name *</label>
-        <input class="form-input" type="text" id="name" name="name"
-               placeholder="e.g. George Orwell" required autofocus />
+    <div class="card border-0 shadow-sm">
+      <div class="card-body p-4">
+        <form method="post" action="{% url 'library:admin_author_create' %}" enctype="multipart/form-data">
+          {% csrf_token %}
+          {% include "includes/inline_photo_upload.html" with name_id="name" photo_id="photo" preview_id="authorPhotoPreview" fallback_id="authorPhotoFallback" initial_id="authorPhotoInitial" accent="#0d3b6e" %}
+          <div class="mb-3">
+            <label class="form-label fw-semibold" for="name">Author name *</label>
+            <input class="form-control" type="text" id="name" name="name"
+                   placeholder="e.g. George Orwell" required autofocus />
+          </div>
+          <div class="d-flex gap-2 justify-content-end">
+            <a href="{{ books_url }}" class="btn btn-outline-secondary">Cancel</a>
+            <button class="btn btn-dark" type="submit">
+              <i class="fa-solid fa-floppy-disk me-1"></i>Save author
+            </button>
+          </div>
+        </form>
       </div>
-      <hr class="divider" />
-      <div style="display:flex;gap:.75rem;justify-content:flex-end">
-        <a href="{% url 'library:admin_book_list' %}" class="btn btn--ghost">Cancel</a>
-        <button class="btn btn--primary" type="submit">
-          <i class="fa-solid fa-floppy-disk"></i> Save author
-        </button>
-      </div>
-    </form>
+    </div>
   </div>
-
 </div>
 {% endblock %}

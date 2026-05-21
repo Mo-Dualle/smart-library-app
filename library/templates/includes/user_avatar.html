@@ -1,0 +1,29 @@
+{# account (required), size=48, variant=member|staff|neutral, img_id=, fallback_id=, extra_class= #}
+{% with px=size|default:48 %}
+<div class="user-avatar-wrap {{ extra_class }}"
+     style="position:relative;width:{{ px }}px;height:{{ px }}px;flex-shrink:0">
+  {% if account.show_avatar_image %}
+    <img {% if img_id %}id="{{ img_id }}"{% endif %}
+         src="{{ account.avatar.url }}"
+         alt="{{ account.get_full_name }}"
+         class="rounded-circle border user-avatar-img"
+         style="width:{{ px }}px;height:{{ px }}px;object-fit:cover"
+         onerror="this.classList.add('d-none');var f=this.nextElementSibling;if(f){f.classList.remove('d-none');f.classList.add('d-flex');}"/>
+  {% else %}
+    <img {% if img_id %}id="{{ img_id }}"{% endif %}
+         src=""
+         alt=""
+         class="rounded-circle border user-avatar-img d-none"
+         style="width:{{ px }}px;height:{{ px }}px;object-fit:cover"/>
+  {% endif %}
+  <div {% if fallback_id %}id="{{ fallback_id }}"{% endif %}
+       class="user-avatar-fallback rounded-circle align-items-center justify-content-center border
+              {% if account.show_avatar_image %}d-none{% else %}d-flex{% endif %}"
+       style="width:{{ px }}px;height:{{ px }}px;font-weight:700;color:#fff;
+              background:{% if variant == 'staff' %}#212529{% elif variant == 'neutral' %}#6c757d{% else %}#0d3b6e{% endif %};
+              {% if px >= 120 %}font-size:2.5rem;{% elif px >= 90 %}font-size:2rem;{% elif px >= 72 %}font-size:1.8rem;{% elif px >= 48 %}font-size:1.1rem;{% else %}font-size:.85rem;{% endif %}
+              position:absolute;top:0;left:0">
+    {{ account.avatar_initial }}
+  </div>
+</div>
+{% endwith %}

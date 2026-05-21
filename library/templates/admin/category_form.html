@@ -2,34 +2,32 @@
 {% block title %}Add Category — LibraryApp{% endblock %}
 
 {% block content %}
-<div class="page" style="max-width:480px">
+{% url 'library:admin_book_list' as books_url %}
+{% include "includes/breadcrumb_bar.html" with title="Add category" parent_label="Manage books" parent_url=books_url active_label="Add category" %}
 
-  <nav style="font-size:.85rem;color:var(--text-muted);margin-bottom:1.5rem">
-    <a href="{% url 'library:admin_book_list' %}" style="color:var(--navy)">Books</a>
-    <span style="margin:0 .4rem">/</span> Add Category
-  </nav>
+<div class="row justify-content-center">
+  <div class="col-lg-6">
+    <h4 class="fw-bold mb-4"><i class="fa-solid fa-tag me-2"></i>Add category</h4>
 
-  <h1 style="color:var(--navy);margin-bottom:1.8rem">
-    <i class="fa-solid fa-tag"></i> Add Category
-  </h1>
-
-  <div class="card" style="padding:2rem">
-    <form method="post" action="{% url 'library:admin_category_create' %}">
-      {% csrf_token %}
-      <div class="form-group">
-        <label class="form-label" for="name">Category name *</label>
-        <input class="form-input" type="text" id="name" name="name"
-               placeholder="e.g. Science Fiction" required autofocus />
+    <div class="card border-0 shadow-sm">
+      <div class="card-body p-4">
+        <form method="post" action="{% url 'library:admin_category_create' %}" enctype="multipart/form-data">
+          {% csrf_token %}
+          {% include "includes/inline_photo_upload.html" with name_id="name" photo_id="photo" preview_id="categoryPhotoPreview" fallback_id="categoryPhotoFallback" initial_id="categoryPhotoInitial" accent="#198754" %}
+          <div class="mb-3">
+            <label class="form-label fw-semibold" for="name">Category name *</label>
+            <input class="form-control" type="text" id="name" name="name"
+                   placeholder="e.g. Science Fiction" required autofocus />
+          </div>
+          <div class="d-flex gap-2 justify-content-end">
+            <a href="{{ books_url }}" class="btn btn-outline-secondary">Cancel</a>
+            <button class="btn btn-dark" type="submit">
+              <i class="fa-solid fa-floppy-disk me-1"></i>Save category
+            </button>
+          </div>
+        </form>
       </div>
-      <hr class="divider" />
-      <div style="display:flex;gap:.75rem;justify-content:flex-end">
-        <a href="{% url 'library:admin_book_list' %}" class="btn btn--ghost">Cancel</a>
-        <button class="btn btn--primary" type="submit">
-          <i class="fa-solid fa-floppy-disk"></i> Save category
-        </button>
-      </div>
-    </form>
+    </div>
   </div>
-
 </div>
 {% endblock %}

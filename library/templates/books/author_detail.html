@@ -2,15 +2,11 @@
 {% block title %}{{ author.name }} — LibraryApp{% endblock %}
 
 {% block content %}
-<nav aria-label="breadcrumb" class="mb-3">
-  <ol class="breadcrumb">
-    <li class="breadcrumb-item"><a href="{% url 'library:author_list' %}">Authors</a></li>
-    <li class="breadcrumb-item active">{{ author.name }}</li>
-  </ol>
-</nav>
+{% url 'library:author_list' as authors_url %}
+{% include "includes/breadcrumb_bar.html" with nav_root="catalog" title=author.name parent_label="Authors" parent_url=authors_url %}
 
 <div class="d-flex align-items-center gap-3 mb-4">
-  <div class="avatar-circle" style="width:60px;height:60px;font-size:1.4rem">{{ author.name|first|upper }}</div>
+  {% include "includes/entity_photo.html" with entity=author size=60 %}
   <div>
     <h3 class="fw-bold mb-0">{{ author.name }}</h3>
     <small class="text-muted">

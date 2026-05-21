@@ -2,15 +2,7 @@
 {% block title %}Dashboard — LibraryApp{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-  <div>
-    <h4 class="fw-bold mb-0">My Dashboard</h4>
-    <small class="text-muted">Welcome back, <strong>{{ user.first_name }}</strong></small>
-  </div>
-  <a href="{% url 'library:book_list' %}" class="btn btn-dark btn-sm">
-    <i class="fa-solid fa-magnifying-glass me-1"></i>Browse Books
-  </a>
-</div>
+{% include "includes/dashboard_header.html" with nav_root="member" title="My dashboard" show_public_site=1 %}
 
 <!-- Stats — each card is clickable -->
 <div class="row g-3 mb-4">

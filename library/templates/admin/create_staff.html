@@ -3,14 +3,8 @@
 
 {% block content %}
 
-<nav aria-label="breadcrumb" class="mb-4">
-  <ol class="breadcrumb">
-    <li class="breadcrumb-item">
-      <a href="{% url 'library:admin_dashboard' %}">Dashboard</a>
-    </li>
-    <li class="breadcrumb-item active">Add staff</li>
-  </ol>
-</nav>
+{% url 'library:admin_member_list' as users_url %}
+{% include "includes/breadcrumb_bar.html" with title="Add staff" parent_label="Users" parent_url=users_url active_label="Add staff" %}
 
 <div class="row justify-content-center">
   <div class="col-lg-7">
@@ -38,8 +32,40 @@
         <form id="staffForm"
               method="post"
               action="{% url 'library:admin_create_staff' %}"
+              enctype="multipart/form-data"
               novalidate>
           {% csrf_token %}
+
+          <div class="card border-0 bg-light mb-4">
+            <div class="card-body p-3">
+              <h6 class="fw-semibold mb-3">Profile photo</h6>
+              <div class="d-flex align-items-center gap-4 flex-wrap">
+                <div style="position:relative;width:90px;height:90px;flex-shrink:0">
+                  <img id="avatarPreview"
+                       src=""
+                       alt="Photo preview"
+                       class="rounded-circle border shadow-sm d-none"
+                       style="width:90px;height:90px;object-fit:cover"/>
+                  <div id="avatarFallback"
+                       class="rounded-circle d-flex align-items-center justify-content-center border shadow-sm"
+                       style="width:90px;height:90px;background:#212529;color:#fbbf24;font-size:2rem;font-weight:700">
+                    <span id="avatarInitial">?</span>
+                  </div>
+                </div>
+                <div class="flex-grow-1">
+                  <label for="avatar" class="form-label fw-semibold mb-1">
+                    Upload photo <span class="text-muted fw-normal">(optional)</span>
+                  </label>
+                  <input type="file"
+                         class="form-control"
+                         id="avatar"
+                         name="avatar"
+                         accept="image/jpeg,image/png,image/webp,image/gif"/>
+                  <div class="form-text">JPG, PNG, WebP or GIF · Max 5 MB · Shown as a circle in the app</div>
+                </div>
+              </div>
+            </div>
+          </div>
 
           <div class="row g-3">
 
@@ -130,7 +156,7 @@
           </div>
 
           <div class="d-flex gap-2 justify-content-end">
-            <a href="{% url 'library:admin_dashboard' %}" class="btn btn-outline-secondary">
+            <a href="{{ users_url }}" class="btn btn-outline-secondary">
               Cancel
             </a>
             <button type="submit" class="btn btn-dark">
@@ -145,4 +171,48 @@
   </div>
 </div>
 
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  const input = document.getElementById("avatar");
+  const preview = document.getElementById("avatarPreview");
+  const fallback = document.getElementById("avatarFallback");
+  const initialEl = document.getElementById("avatarInitial");
+  const firstName = document.getElementById("first_name");
+
+  function updateInitial() {
+    if (!initialEl || !firstName) return;
+    const letter = (firstName.value.trim()[0] || "?").toUpperCase();
+    initialEl.textContent = letter;
+  }
+
+  if (firstName) {
+    firstName.addEventListener("input", updateInitial);
+    updateInitial();
+  }
+
+  if (!input || !preview) return;
+
+  input.addEventListener("change", function () {
+    const file = this.files[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert("File is too large. Please choose an image under 5 MB.");
+      this.value = "";
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function (e) {
+      preview.src = e.target.result;
+      preview.classList.remove("d-none");
+      if (fallback) fallback.classList.add("d-none");
+    };
+    reader.readAsDataURL(file);
+  });
+})();
+</script>
 {% endblock %}

@@ -5,6 +5,7 @@ certifi==2025.10.5
 charset-normalizer==3.4.3
 decorator==5.2.1
 dj-database-url==3.1.2
+django-environ==0.12.0
 Django==5.2.13
 gunicorn==26.0.0
 idna==3.10

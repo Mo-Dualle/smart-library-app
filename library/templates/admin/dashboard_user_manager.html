@@ -3,18 +3,7 @@
 
 {% block content %}
 
-<div class="d-flex justify-content-between align-items-center mb-4">
-  <div>
-    <div class="d-flex align-items-center gap-2 mb-1">
-      <span class="badge bg-info text-dark rounded-pill px-3 py-2"><i class="fa-solid fa-users-gear me-1"></i>User manager</span>
-    </div>
-    <h4 class="fw-bold mb-0">User management dashboard</h4>
-    <small class="text-muted">Members &amp; staff accounts</small>
-  </div>
-  <a href="{% url 'library:book_list' %}" class="btn btn-outline-info btn-sm">
-    <i class="fa-solid fa-eye me-1"></i>Public site
-  </a>
-</div>
+{% include "includes/dashboard_header.html" with title="User management dashboard" subtitle="Members & staff accounts" badge_label="User manager" badge_icon="fa-users-gear" badge_class="bg-info text-dark" show_public_site=1 %}
 
 <div class="row g-3 mb-4">
   <div class="col-6 col-md-4">

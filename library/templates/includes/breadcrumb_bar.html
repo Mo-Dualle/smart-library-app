@@ -1,0 +1,34 @@
+<nav aria-label="breadcrumb" class="mb-3">
+  <ol class="breadcrumb mb-0">
+    {% if nav_root == "member" %}
+      <li class="breadcrumb-item">
+        <a href="{% url 'library:dashboard' %}">{{ member_nav.dashboard_label }}</a>
+      </li>
+    {% elif nav_root == "catalog" %}
+      {% if catalog_home %}
+        <li class="breadcrumb-item active" aria-current="page">Book catalog</li>
+      {% else %}
+        <li class="breadcrumb-item">
+          <a href="{% url 'library:book_list' %}">Book catalog</a>
+        </li>
+      {% endif %}
+    {% elif staff_access %}
+      <li class="breadcrumb-item">
+        <a href="{% url 'library:admin_dashboard' %}">{{ staff_nav.dashboard_label }}</a>
+      </li>
+    {% endif %}
+    {% if parent2_label and parent2_url %}
+      <li class="breadcrumb-item">
+        <a href="{{ parent2_url }}">{{ parent2_label }}</a>
+      </li>
+    {% endif %}
+    {% if parent_label and parent_url %}
+      <li class="breadcrumb-item">
+        <a href="{{ parent_url }}">{{ parent_label }}</a>
+      </li>
+    {% endif %}
+    {% if not catalog_home or nav_root != "catalog" %}
+      <li class="breadcrumb-item active" aria-current="page">{{ active_label|default:title }}</li>
+    {% endif %}
+  </ol>
+</nav>

@@ -369,6 +369,14 @@ function initInlineCreation() {
   const urls = window.LIBRARY_URLS;
   if (!urls) return;  // only on the book form page
 
+  // Keep modals on <body> so they are not clipped/trapped by animated <main>
+  ["authorModal", "categoryModal"].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el && el.parentElement !== document.body) {
+      document.body.appendChild(el);
+    }
+  });
+
   // ── Shared: blur focused element before Bootstrap sets aria-hidden ──────
   // This MUST use hide.bs.modal (fires before aria-hidden is applied).
   // Blurring here prevents Chrome's "Blocked aria-hidden on focused element".
@@ -381,16 +389,60 @@ function initInlineCreation() {
   }
 
   // ── Shared modal handler factory ────────────────────────────────────────
-  function setupModal({ modalId, inputId, errorId, saveBtnId, selectId, endpoint, label }) {
+  function setupModal({ modalId, inputId, errorId, saveBtnId, selectId, endpoint, label, photoInputId }) {
     const modalEl  = document.getElementById(modalId);
     const input    = document.getElementById(inputId);
     const errorEl  = document.getElementById(errorId);
     const saveBtn  = document.getElementById(saveBtnId);
     const select   = document.getElementById(selectId);
+    const photoInput = photoInputId ? document.getElementById(photoInputId) : null;
+    const preview  = photoInput?.dataset.preview ? document.querySelector(photoInput.dataset.preview) : null;
+    const fallback = photoInput?.dataset.fallback ? document.querySelector(photoInput.dataset.fallback) : null;
+    const initialEl = photoInput?.dataset.initial ? document.querySelector(photoInput.dataset.initial) : null;
 
     if (!saveBtn || !modalEl) return;
 
     fixAriaHidden(modalEl);
+
+    function syncInitial() {
+      if (!initialEl || !input) return;
+      initialEl.textContent = (input.value.trim()[0] || "?").toUpperCase();
+    }
+
+    function resetPhoto() {
+      if (photoInput) photoInput.value = "";
+      if (preview) {
+        preview.src = "";
+        preview.classList.add("d-none");
+      }
+      if (fallback) {
+        fallback.classList.remove("d-none");
+      }
+      syncInitial();
+    }
+
+    if (photoInput && preview) {
+      photoInput.addEventListener("change", () => {
+        const file = photoInput.files[0];
+        if (!file) return;
+        if (file.size > 5 * 1024 * 1024) {
+          alert("Photo must be under 5 MB.");
+          photoInput.value = "";
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          preview.src = e.target.result;
+          preview.classList.remove("d-none");
+          if (fallback) fallback.classList.add("d-none");
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    if (input) {
+      input.addEventListener("input", syncInitial);
+    }
 
     // Reset state on open
     modalEl.addEventListener("shown.bs.modal", () => {
@@ -398,6 +450,7 @@ function initInlineCreation() {
       input.classList.remove("is-invalid");
       errorEl.classList.add("d-none");
       errorEl.textContent = "";
+      resetPhoto();
       input.focus();
     });
 
@@ -428,6 +481,14 @@ function initInlineCreation() {
       try {
         const fd = new FormData();
         fd.append("name", name);
+        if (photoInput?.files[0]) {
+          if (photoInput.files[0].size > 5 * 1024 * 1024) {
+            errorEl.textContent = "Photo must be under 5 MB.";
+            errorEl.classList.remove("d-none");
+            return;
+          }
+          fd.append("photo", photoInput.files[0]);
+        }
 
         const data = await Utils.postForm(endpoint, fd);
 
@@ -461,6 +522,7 @@ function initInlineCreation() {
     selectId: "author_id",
     endpoint: urls.authorCreateJson,
     label:    "Author",
+    photoInputId: "newAuthorPhoto",
   });
 
   // ── Category modal ────────────────────────────────────────────────────────
@@ -472,6 +534,7 @@ function initInlineCreation() {
     selectId: "category_id",
     endpoint: urls.categoryCreateJson,
     label:    "Category",
+    photoInputId: "newCategoryPhoto",
   });
 }
 
@@ -481,14 +544,34 @@ function initInlineCreation() {
 function initImagePreview() {
   document.querySelectorAll("input[type='file'][data-preview]").forEach((input) => {
     const preview = document.querySelector(input.dataset.preview);
+    const fallback = input.dataset.fallback ? document.querySelector(input.dataset.fallback) : null;
+    const initialEl = input.dataset.initial ? document.querySelector(input.dataset.initial) : null;
+    const nameInput = input.dataset.name ? document.querySelector(input.dataset.name) : null;
+
+    if (nameInput && initialEl) {
+      const sync = () => {
+        initialEl.textContent = (nameInput.value.trim()[0] || "?").toUpperCase();
+      };
+      nameInput.addEventListener("input", sync);
+      sync();
+    }
+
     if (!preview) return;
+
     input.addEventListener("change", () => {
       const file = input.files[0];
       if (!file || !file.type.startsWith("image/")) return;
+      if (file.size > 5 * 1024 * 1024) {
+        alert("Photo must be under 5 MB.");
+        input.value = "";
+        return;
+      }
       const reader = new FileReader();
       reader.onload = (e) => {
-        preview.src           = e.target.result;
+        preview.src = e.target.result;
+        preview.classList.remove("d-none");
         preview.style.display = "block";
+        if (fallback) fallback.classList.add("d-none");
       };
       reader.readAsDataURL(file);
     });

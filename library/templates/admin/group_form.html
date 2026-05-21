@@ -154,16 +154,12 @@
 
 {% block content %}
 
-<nav aria-label="breadcrumb" class="mb-4">
-  <ol class="breadcrumb">
-    <li class="breadcrumb-item">
-      <a href="{% url 'library:admin_group_list' %}">Groups</a>
-    </li>
-    <li class="breadcrumb-item active">
-      {% if mode == "edit" %}Edit group{% else %}Create group{% endif %}
-    </li>
-  </ol>
-</nav>
+{% url 'library:admin_group_list' as groups_url %}
+{% if mode == "edit" %}
+  {% include "includes/breadcrumb_bar.html" with title="Edit group" parent_label="Groups" parent_url=groups_url active_label="Edit group" %}
+{% else %}
+  {% include "includes/breadcrumb_bar.html" with title="Create group" parent_label="Groups" parent_url=groups_url active_label="Create group" %}
+{% endif %}
 
 <div class="row justify-content-center">
   <div class="col-12 col-xl-11">

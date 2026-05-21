@@ -3,13 +3,8 @@
 
 {% block content %}
 
-<!-- Breadcrumb -->
-<nav aria-label="breadcrumb" class="mb-4">
-  <ol class="breadcrumb">
-    <li class="breadcrumb-item"><a href="{% url 'library:profile' %}">My Profile</a></li>
-    <li class="breadcrumb-item active">Edit Profile</li>
-  </ol>
-</nav>
+{% url 'library:profile' as profile_url %}
+{% include "includes/breadcrumb_bar.html" with nav_root="member" title="Edit profile" parent_label="My profile" parent_url=profile_url active_label="Edit profile" %}
 
 <div class="row justify-content-center">
   <div class="col-lg-7">
@@ -31,24 +26,7 @@
           <div class="d-flex align-items-center gap-4 flex-wrap">
 
             <!-- Current / preview avatar -->
-            {% if user.avatar %}
-              <img id="avatarPreview"
-                   src="{{ user.avatar.url }}"
-                   alt="Avatar preview"
-                   class="rounded-circle border border-3 border-light shadow-sm"
-                   style="width:90px;height:90px;object-fit:cover"/>
-            {% else %}
-              <div id="avatarFallback"
-                   class="rounded-circle d-flex align-items-center justify-content-center shadow-sm flex-shrink-0"
-                   style="width:90px;height:90px;background:#212529;color:#fff;font-size:2rem;font-weight:700">
-                {{ user.first_name|first|upper }}
-              </div>
-              <img id="avatarPreview"
-                   src=""
-                   alt="Avatar preview"
-                   class="rounded-circle border border-3 border-light shadow-sm d-none"
-                   style="width:90px;height:90px;object-fit:cover"/>
-            {% endif %}
+            {% include "includes/user_avatar.html" with account=user size=90 variant="member" img_id="avatarPreview" fallback_id="avatarFallback" extra_class="shadow-sm" %}
 
             <div class="flex-grow-1">
               <label for="avatar" class="form-label fw-semibold mb-1">Upload new photo</label>

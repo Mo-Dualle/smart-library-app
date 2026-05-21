@@ -3,12 +3,10 @@
 
 {% block content %}
 
-<!-- Header -->
-<div class="d-flex justify-content-between align-items-center mb-4">
-  <div>
-    <h4 class="fw-bold mb-0">Categories</h4>
-    <small class="text-muted">Browse books by genre</small>
-  </div>
+{% include "includes/breadcrumb_bar.html" with nav_root="catalog" title="Categories" active_label="Categories" %}
+<div class="mb-4">
+  <h4 class="fw-bold mb-0">Categories</h4>
+  <small class="text-muted">Browse books by genre</small>
 </div>
 
 {% if categories %}
@@ -21,7 +19,12 @@
           <div class="card border-0 shadow-sm h-100 card-hover">
             <div class="card-body d-flex flex-column align-items-center text-center p-4">
 
-              <!-- Icon circle -->
+              <!-- Icon / photo -->
+              {% if cat.show_photo %}
+                <div class="mb-3">
+                  {% include "includes/entity_photo.html" with entity=cat size=60 accent="#198754" %}
+                </div>
+              {% else %}
               <div class="mb-3 d-flex align-items-center justify-content-center rounded-circle"
                    style="width:60px;height:60px;background:#f1f3f5;font-size:1.5rem">
                 {% if cat.name|lower == "fiction" %}🗡️
@@ -44,6 +47,7 @@
                 {% elif cat.name|lower == "sports" %}⚽
                 {% else %}📚{% endif %}
               </div>
+              {% endif %}
 
               <h6 class="fw-bold mb-1">{{ cat.name }}</h6>
 

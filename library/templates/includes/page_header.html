@@ -1,0 +1,22 @@
+{% include "includes/breadcrumb_bar.html" %}
+
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+  <div>
+    <h4 class="fw-bold mb-0">{{ title }}</h4>
+    {% if subtitle %}<small class="text-muted">{{ subtitle }}</small>{% endif %}
+  </div>
+  {% if show_public_site or action_url %}
+    <div class="d-flex gap-2 flex-shrink-0">
+      {% if show_public_site %}
+        <a href="{% url 'library:book_list' %}" class="btn btn-outline-secondary btn-sm">
+          <i class="fa-solid fa-eye me-1"></i>Public site
+        </a>
+      {% endif %}
+      {% if action_url %}
+        <a href="{{ action_url }}" class="btn {{ action_class|default:'btn-dark' }} btn-sm">
+          {% if action_icon %}<i class="fa-solid {{ action_icon }} me-1"></i>{% endif %}{{ action_label }}
+        </a>
+      {% endif %}
+    </div>
+  {% endif %}
+</div>

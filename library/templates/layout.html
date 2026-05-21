@@ -13,10 +13,14 @@
 
     /* Page entry animation */
     @keyframes pageFadeIn {
-      from { opacity: 0; transform: translateY(10px); }
-      to   { opacity: 1; transform: translateY(0);    }
+      from { opacity: 0; }
+      to   { opacity: 1; }
     }
     main { animation: pageFadeIn .25s ease forwards; }
+
+    /* Modals must sit above the backdrop (Bootstrap z-index stack) */
+    .modal { z-index: 1055; }
+    .modal-backdrop { z-index: 1050; }
 
     /* NProgress customisation — matches Bootstrap dark theme */
     #nprogress .bar        { background: #fff !important; height: 3px; }
@@ -79,18 +83,7 @@
             <a class="nav-link dropdown-toggle d-flex align-items-center gap-2 p-0 pe-2"
                href="#" id="userDropdown" role="button"
                data-bs-toggle="dropdown" aria-expanded="false">
-              <!-- Avatar with fallback to initials if image missing -->
-              <div style="position:relative;width:34px;height:34px">
-                <img src="{{ user.avatar.url }}"
-                     alt="{{ user.get_full_name }}"
-                     class="rounded-circle border border-secondary"
-                     style="width:34px;height:34px;object-fit:cover"
-                     onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/>
-                <div class="rounded-circle bg-secondary d-flex align-items-center justify-content-center border border-secondary"
-                     style="width:34px;height:34px;font-size:.85rem;font-weight:700;color:#fff;display:none;position:absolute;top:0;left:0">
-                  {{ user.first_name|first|upper }}
-                </div>
-              </div>
+              {% include "includes/user_avatar.html" with account=user size=34 variant="neutral" extra_class="border-secondary" %}
               <span class="d-none d-lg-inline text-white" style="font-size:.9rem">
                 {{ user.first_name }}
               </span>
@@ -102,16 +95,7 @@
               <!-- User info header -->
               <li class="px-3 py-2 border-bottom">
                 <div class="d-flex align-items-center gap-2">
-                  <!-- Dropdown header avatar with fallback -->
-                  <div style="position:relative;width:40px;height:40px;flex-shrink:0">
-                    <img src="{{ user.avatar.url }}" alt=""
-                         class="rounded-circle" style="width:40px;height:40px;object-fit:cover"
-                         onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/>
-                    <div class="rounded-circle bg-dark d-flex align-items-center justify-content-center"
-                         style="width:40px;height:40px;font-size:1rem;font-weight:700;color:#fff;display:none;position:absolute;top:0;left:0">
-                      {{ user.first_name|first|upper }}
-                    </div>
-                  </div>
+                  {% include "includes/user_avatar.html" with account=user size=40 variant="neutral" %}
                   <div class="overflow-hidden">
                     <div class="fw-semibold text-truncate" style="font-size:.9rem">
                       {{ user.get_full_name }}
@@ -245,6 +229,8 @@
 <main class="container py-4">
   {% block content %}{% endblock %}
 </main>
+
+{% block modals %}{% endblock %}
 
 <footer class="bg-dark text-white text-center py-3 mt-auto">
   <small>&copy; {% now "Y" %} LibraryApp</small>

@@ -69,6 +69,14 @@ from .roles import (
 
 logger = logging.getLogger(__name__)
 
+MAX_UPLOAD_PHOTO_BYTES = 5 * 1024 * 1024
+
+
+def _photo_upload_error(photo) -> str | None:
+    if photo and photo.size > MAX_UPLOAD_PHOTO_BYTES:
+        return "Photo must be under 5 MB."
+    return None
+
 FINE_RATE_PER_DAY  = 0.50
 BORROW_PERIOD_DAYS = 14
 
@@ -835,18 +843,23 @@ def admin_book_delete_view(request, book_id):
 def admin_author_create_view(request):
     if request.method == "POST":
         name = request.POST.get("name", "").strip()
+        photo = request.FILES.get("photo")
         if not name:
             messages.error(request, "Author name is required.")
-            return render(request, "admin/author_form.html")
+            return render(request, "admin/authors_form.html")
+        photo_err = _photo_upload_error(photo)
+        if photo_err:
+            messages.error(request, photo_err)
+            return render(request, "admin/authors_form.html")
         try:
-            author = Author.objects.create(name=name)
+            author = Author.objects.create(name=name, photo=photo or None)
             messages.success(request, f"Author '{author.name}' added.")
             logger.info("Author created: %s by staff %s", author.name, request.user.email)
             return redirect("library:admin_book_list")
         except Exception as exc:
             logger.exception("Author creation failed: %s", exc)
             messages.error(request, "Could not create author.")
-    return render(request, "admin/author_form.html")
+    return render(request, "admin/authors_form.html")
 
 
 @login_required
@@ -855,11 +868,16 @@ def admin_author_create_view(request):
 def admin_category_create_view(request):
     if request.method == "POST":
         name = request.POST.get("name", "").strip()
+        photo = request.FILES.get("photo")
         if not name:
             messages.error(request, "Category name is required.")
             return render(request, "admin/category_form.html")
+        photo_err = _photo_upload_error(photo)
+        if photo_err:
+            messages.error(request, photo_err)
+            return render(request, "admin/category_form.html")
         try:
-            category = Category.objects.create(name=name)
+            category = Category.objects.create(name=name, photo=photo or None)
             messages.success(request, f"Category '{category.name}' added.")
             logger.info("Category created: %s by staff %s", category.name, request.user.email)
             return redirect("library:admin_book_list")
@@ -1144,8 +1162,7 @@ def profile_edit_view(request):
             user.gender     = gender
 
             if avatar:
-                # Delete old avatar if it is not the default
-                if user.avatar and "default" not in user.avatar.name:
+                if user.show_avatar_image:
                     user.avatar.delete(save=False)
                 user.avatar = avatar
 
@@ -1259,6 +1276,7 @@ def admin_create_staff_view(request):
         password1  = request.POST.get("password1",  "")
         password2  = request.POST.get("password2",  "")
         selected_group_ids = request.POST.getlist("groups")
+        avatar     = request.FILES.get("avatar")
 
         errors = []
         if not all([first_name, last_name, email, username, password1]):
@@ -1273,6 +1291,8 @@ def admin_create_staff_view(request):
             errors.append("This username is already taken.")
         if not selected_group_ids:
             errors.append("Select at least one role group.")
+        if avatar and avatar.size > 5 * 1024 * 1024:
+            errors.append("Profile photo must be under 5 MB.")
 
         if errors:
             for e in errors:
@@ -1311,6 +1331,10 @@ def admin_create_staff_view(request):
             groups = list(Group.objects.filter(id__in=requested_ids))
             user.groups.set(groups)
             sync_user_staff_flags(user)
+
+            if avatar:
+                user.avatar = avatar
+                user.save(update_fields=["avatar"])
 
             messages.success(
                 request,
@@ -1625,12 +1649,16 @@ def author_create_json(request):
     Returns {id, name} on success or {error} on failure.
     """
     name = request.POST.get("name", "").strip()
+    photo = request.FILES.get("photo")
     if not name:
         return JsonResponse({"error": "Author name is required."}, status=400)
+    photo_err = _photo_upload_error(photo)
+    if photo_err:
+        return JsonResponse({"error": photo_err}, status=400)
     if Author.objects.filter(name__iexact=name).exists():
         return JsonResponse({"error": f"Author '{escape(name)}' already exists."}, status=400)
     try:
-        author = Author.objects.create(name=name)
+        author = Author.objects.create(name=name, photo=photo or None)
         logger.info("Inline author created: %s by staff %s", author.name, request.user.email)
         return JsonResponse({"id": author.pk, "name": escape(author.name)})
     except Exception as exc:
@@ -1647,12 +1675,16 @@ def category_create_json(request):
     Returns {id, name} on success or {error} on failure.
     """
     name = request.POST.get("name", "").strip()
+    photo = request.FILES.get("photo")
     if not name:
         return JsonResponse({"error": "Category name is required."}, status=400)
+    photo_err = _photo_upload_error(photo)
+    if photo_err:
+        return JsonResponse({"error": photo_err}, status=400)
     if Category.objects.filter(name__iexact=name).exists():
         return JsonResponse({"error": f"Category '{escape(name)}' already exists."}, status=400)
     try:
-        category = Category.objects.create(name=name)
+        category = Category.objects.create(name=name, photo=photo or None)
         logger.info("Inline category created: %s by staff %s", category.name, request.user.email)
         return JsonResponse({"id": category.pk, "name": escape(category.name)})
     except Exception as exc:

@@ -2,12 +2,12 @@
 {% block title %}{% if book %}Edit Book{% else %}Add Book{% endif %} — LibraryApp{% endblock %}
 
 {% block content %}
-<nav aria-label="breadcrumb" class="mb-3">
-  <ol class="breadcrumb">
-    <li class="breadcrumb-item"><a href="{% url 'library:admin_book_list' %}">Books</a></li>
-    <li class="breadcrumb-item active">{% if book %}Edit: {{ book.title }}{% else %}Add Book{% endif %}</li>
-  </ol>
-</nav>
+{% url 'library:admin_book_list' as books_url %}
+{% if book %}
+  {% include "includes/breadcrumb_bar.html" with title="Edit book" parent_label="Manage books" parent_url=books_url active_label=book.title %}
+{% else %}
+  {% include "includes/breadcrumb_bar.html" with title="Add book" parent_label="Manage books" parent_url=books_url active_label="Add book" %}
+{% endif %}
 
 <h4 class="fw-bold mb-4">
   {% if book %}<i class="fa-solid fa-pen me-2"></i>Edit Book
@@ -133,9 +133,11 @@
   </div>
 </div>
 
+{% endblock %}
 
-<!-- ── Author creation modal ──────────────────────────────── -->
-<div class="modal fade" id="authorModal" tabindex="-1" aria-labelledby="authorModalLabel" aria-hidden="true" data-bs-focus="false">
+{% block modals %}
+<!-- ── Author creation modal (outside <main> so backdrop/clicks work) ── -->
+<div class="modal fade" id="authorModal" tabindex="-1" aria-labelledby="authorModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
@@ -146,6 +148,7 @@
       </div>
       <div class="modal-body">
         <div id="authorError" class="alert alert-danger d-none"></div>
+        {% include "includes/inline_photo_upload.html" with name_id="newAuthorName" photo_id="newAuthorPhoto" preview_id="authorPhotoPreview" fallback_id="authorPhotoFallback" initial_id="authorPhotoInitial" accent="#0d3b6e" %}
         <label for="newAuthorName" class="form-label fw-semibold">Author name *</label>
         <input type="text" class="form-control" id="newAuthorName"
                placeholder="e.g. George Orwell" autocomplete="off"/>
@@ -162,7 +165,7 @@
 
 
 <!-- ── Category creation modal ────────────────────────────── -->
-<div class="modal fade" id="categoryModal" tabindex="-1" aria-labelledby="categoryModalLabel" aria-hidden="true" data-bs-focus="false">
+<div class="modal fade" id="categoryModal" tabindex="-1" aria-labelledby="categoryModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
@@ -173,6 +176,7 @@
       </div>
       <div class="modal-body">
         <div id="categoryError" class="alert alert-danger d-none"></div>
+        {% include "includes/inline_photo_upload.html" with name_id="newCategoryName" photo_id="newCategoryPhoto" preview_id="categoryPhotoPreview" fallback_id="categoryPhotoFallback" initial_id="categoryPhotoInitial" accent="#198754" %}
         <label for="newCategoryName" class="form-label fw-semibold">Category name *</label>
         <input type="text" class="form-control" id="newCategoryName"
                placeholder="e.g. Science Fiction" autocomplete="off"/>
@@ -186,7 +190,6 @@
     </div>
   </div>
 </div>
-
 {% endblock %}
 
 {% block extra_js %}

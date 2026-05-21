@@ -2,13 +2,8 @@
 {% block title %}{{ book.title }} — LibraryApp{% endblock %}
 
 {% block content %}
-<!-- Breadcrumb -->
-<nav aria-label="breadcrumb" class="mb-3">
-  <ol class="breadcrumb">
-    <li class="breadcrumb-item"><a href="{% url 'library:book_list' %}">Books</a></li>
-    <li class="breadcrumb-item active">{{ book.title }}</li>
-  </ol>
-</nav>
+{% url 'library:book_list' as catalog_url %}
+{% include "includes/breadcrumb_bar.html" with nav_root="catalog" title=book.title parent_label="Book catalog" parent_url=catalog_url %}
 
 <div class="row g-4">
   <!-- Cover -->

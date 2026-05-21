@@ -1,0 +1,19 @@
+{# entity (Author or Category with show_photo, photo, photo_initial), size=52, accent=#0d3b6e #}
+{% with px=size|default:52 %}
+<div style="position:relative;width:{{ px }}px;height:{{ px }}px;flex-shrink:0">
+  {% if entity.show_photo %}
+    <img src="{{ entity.photo.url }}"
+         alt="{{ entity.name }}"
+         class="rounded-circle border"
+         style="width:{{ px }}px;height:{{ px }}px;object-fit:cover"
+         onerror="this.classList.add('d-none');var f=this.nextElementSibling;if(f){f.classList.remove('d-none');f.classList.add('d-flex');}"/>
+  {% endif %}
+  <div class="rounded-circle align-items-center justify-content-center border
+              {% if entity.show_photo %}d-none{% else %}d-flex{% endif %}"
+       style="width:{{ px }}px;height:{{ px }}px;font-weight:700;color:#fff;
+              background:{{ accent|default:'#0d3b6e' }};
+              {% if px >= 60 %}font-size:1.4rem{% elif px >= 52 %}font-size:1.3rem{% else %}font-size:1rem{% endif %}">
+    {{ entity.photo_initial }}
+  </div>
+</div>
+{% endwith %}

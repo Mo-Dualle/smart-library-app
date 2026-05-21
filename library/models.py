@@ -25,7 +25,7 @@ class Account(AbstractUser):
     phone     = models.CharField(max_length=50)
     gender    = models.CharField(max_length=50, choices=GENDER_CHOICES, null=True, blank=True)
     is_member = models.BooleanField(default=False)
-    avatar    = models.ImageField(upload_to="avatars/", default="avatars/avatar.jpg")
+    avatar    = models.ImageField(upload_to="avatars/", blank=True, null=True)
 
     USERNAME_FIELD  = "email"
     REQUIRED_FIELDS = ["username"]
@@ -38,6 +38,25 @@ class Account(AbstractUser):
     def __str__(self):
         return f"{self.get_full_name()} ({self.email})"
 
+    # Legacy rows may still reference this path; file is not shipped with the project.
+    PLACEHOLDER_AVATAR = "avatars/avatar.jpg"
+
+    @property
+    def show_avatar_image(self) -> bool:
+        """True only when a real uploaded image exists in storage."""
+        name = (self.avatar.name or "").strip()
+        if not name or name == self.PLACEHOLDER_AVATAR:
+            return False
+        try:
+            return self.avatar.storage.exists(name)
+        except Exception:
+            return False
+
+    @property
+    def avatar_initial(self) -> str:
+        letter = (self.first_name or self.username or self.email or "?")[:1]
+        return letter.upper()
+
 
 # ---------------------------------------------------------------------------
 # Author
@@ -47,6 +66,7 @@ class Author(models.Model):
     """A book author."""
 
     name       = models.CharField(max_length=255)
+    photo      = models.ImageField(upload_to="authors/photos/", blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -55,6 +75,20 @@ class Author(models.Model):
 
     def __str__(self):
         return self.name
+
+    @property
+    def show_photo(self) -> bool:
+        name = (self.photo.name or "").strip() if self.photo else ""
+        if not name:
+            return False
+        try:
+            return self.photo.storage.exists(name)
+        except Exception:
+            return False
+
+    @property
+    def photo_initial(self) -> str:
+        return (self.name or "?")[:1].upper()
 
 
 # ---------------------------------------------------------------------------
@@ -65,6 +99,7 @@ class Category(models.Model):
     """Book genre / category (e.g. Fiction, Science, History)."""
 
     name       = models.CharField(max_length=255)
+    photo      = models.ImageField(upload_to="categories/photos/", blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -74,6 +109,20 @@ class Category(models.Model):
 
     def __str__(self):
         return self.name
+
+    @property
+    def show_photo(self) -> bool:
+        name = (self.photo.name or "").strip() if self.photo else ""
+        if not name:
+            return False
+        try:
+            return self.photo.storage.exists(name)
+        except Exception:
+            return False
+
+    @property
+    def photo_initial(self) -> str:
+        return (self.name or "?")[:1].upper()
 
 
 # ---------------------------------------------------------------------------
