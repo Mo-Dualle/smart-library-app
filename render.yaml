@@ -1,31 +1,22 @@
-# Render Blueprint — optional one-click deploy from the Render dashboard.
-# Docs: https://render.com/docs/blueprint-spec
+# Render Blueprint — web service only (most reliable sync).
+# Create Postgres manually in the dashboard, then set DATABASE_URL on this service.
+# See DEPLOY.md for steps.
 #
-# After deploy: open the web service → Shell → run:
-#   python manage.py createsuperuser
-
-databases:
-  - name: libraryapp-db
-    plan: free
-    databaseName: libraryapp
-    user: libraryapp
+# For one-click Postgres in the blueprint, use render.full.yaml instead.
 
 services:
   - type: web
-    name: libraryapp
+    name: smart-library
     runtime: python
     plan: free
-    buildCommand: ./build.sh
-    startCommand: gunicorn libraryapp.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120
-    healthCheckPath: /books/
+    buildCommand: bash build.sh
+    startCommand: gunicorn libraryapp.wsgi:application --bind 0.0.0.0:$PORT
     envVars:
       - key: PYTHON_VERSION
         value: "3.11.9"
       - key: SECRET_KEY
         generateValue: true
       - key: DEBUG
-        value: "False"
+        value: "false"
       - key: DATABASE_URL
-        fromDatabase:
-          name: libraryapp-db
-          property: connectionString
+        sync: false

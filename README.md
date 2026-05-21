@@ -135,7 +135,8 @@ Testing was performed through functional and authorization-focused checks:
 
 See **[DEPLOY.md](DEPLOY.md)** for step-by-step **Render** deployment (free tier):
 
-- `render.yaml` — Blueprint (web + Postgres)
+- `render.yaml` — Blueprint (web service; add Postgres manually — best if sync failed)
+- `render.full.yaml` — optional Blueprint with Postgres (one free DB per account)
 - `build.sh` — install, `collectstatic`, `migrate`
 - `.env.example` — local environment template
 
