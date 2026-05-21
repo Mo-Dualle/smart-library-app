@@ -261,7 +261,9 @@ def login_view(request):
             messages.error(request, "Email and password are required.")
             return render(request, "auth/login.html")
 
-        user = authenticate(request, username=email, password=password)
+        user = Account.objects.filter(email__iexact=email).first()
+        if user is None or not user.check_password(password):
+            user = None
 
         if user is None:
             messages.error(request, "Invalid email or password.")
